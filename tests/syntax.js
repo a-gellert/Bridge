@@ -13,10 +13,17 @@ const files = [];
   }
 })(ROOT);
 let bad = 0;
+// Defold bundles only modules required with a string literal; require(variable) fails at runtime.
+const DYNAMIC = /\brequire\s*\(\s*[^"'\s)]/;
 for (const f of files) {
   const L = lauxlib.luaL_newstate();
   lualib.luaL_openlibs(L);
   const src = fs.readFileSync(f);
+  const rel = path.relative(ROOT, f);
+  if (!rel.startsWith("tests") && DYNAMIC.test(src.toString("utf8").replace(/--[^\n]*/g, ""))) {
+    bad++;
+    console.log("DYNAMIC REQUIRE (not bundled by Defold):", rel);
+  }
   if (lauxlib.luaL_loadbuffer(L, src, null, to_luastring(path.relative(ROOT, f))) !== lua.LUA_OK) {
     bad++;
     console.log("SYNTAX", to_jsstring(lua.lua_tostring(L, -1)));

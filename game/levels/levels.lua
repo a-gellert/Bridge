@@ -1,10 +1,12 @@
 -- Campaign index: chapters in order, flattened into one level list.
--- Add a chapter = create game/levels/chapterN.lua and list it in CHAPTER_MODULES.
-local CHAPTER_MODULES = {
-	"game.levels.chapter1",
-	"game.levels.chapter2",
-	"game.levels.chapter3",
-	"game.levels.chapter4",
+-- Add a chapter = create game/levels/chapterN.lua and add a require line to CHAPTERS.
+-- Requires must be string literals: Defold only bundles Lua modules it can find statically
+-- (a require(variable) builds fine but fails at runtime with "module not found").
+local CHAPTERS = {
+	require("game.levels.chapter1"),
+	require("game.levels.chapter2"),
+	require("game.levels.chapter3"),
+	require("game.levels.chapter4"),
 }
 
 local M = {}
@@ -13,8 +15,7 @@ M.chapters = {}
 M.list = {}
 M.by_id = {}
 
-for ci, mod in ipairs(CHAPTER_MODULES) do
-	local ch = require(mod)
+for ci, ch in ipairs(CHAPTERS) do
 	ch.index = ci
 	ch.first = #M.list + 1
 	for li, lvl in ipairs(ch.levels) do

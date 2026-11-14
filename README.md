@@ -62,7 +62,7 @@ tests/                Node + fengari: физика, уровни, сессия, 
 ## Как добавить контент
 
 - **Уровень** — запись в `game/levels/chapterN.lua` (формат описан в начале `chapter1.lua`). Обязательно поле `solution`: тест проверит, что эталон влезает в бюджет и правила, а грузовик по нему доезжает. Он же используется как подсказка (rewarded).
-- **Глава** — новый файл `chapterN.lua` + строка в `CHAPTER_MODULES` (`game/levels/levels.lua`) + тема в `game/config/themes.lua`.
+- **Глава** — новый файл `chapterN.lua` + строка `require("game.levels.chapterN")` в `CHAPTERS` (`game/levels/levels.lua`; только строковым литералом — Defold включает в билд лишь статически найденные модули) + тема в `game/config/themes.lua`.
 - **Материал** — запись в `game/config/materials.lua` (стоимость, длина, масса, жёсткость, пределы растяжения/сжатия, `rope`, `drivable`, `surface`) + визуал в `visuals.lua` + иконка `mat_<id>` в `tools/gen/ui.js`.
 - **Транспорт** — запись в `game/config/vehicles.lua` (корпус, колёса, мотор, подвеска, звёзды) + модели корпуса и колеса.
 
