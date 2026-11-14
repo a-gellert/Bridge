@@ -1,0 +1,129 @@
+images {
+  image: "/assets/images/ui/white.png"
+}
+images {
+  image: "/assets/images/ui/panel.png"
+}
+images {
+  image: "/assets/images/ui/btn.png"
+}
+images {
+  image: "/assets/images/ui/circle.png"
+}
+images {
+  image: "/assets/images/ui/ring.png"
+}
+images {
+  image: "/assets/images/ui/glow.png"
+}
+images {
+  image: "/assets/images/ui/star.png"
+}
+images {
+  image: "/assets/images/ui/star_slot.png"
+}
+images {
+  image: "/assets/images/ui/undo.png"
+}
+images {
+  image: "/assets/images/ui/trash.png"
+}
+images {
+  image: "/assets/images/ui/eraser.png"
+}
+images {
+  image: "/assets/images/ui/play.png"
+}
+images {
+  image: "/assets/images/ui/home.png"
+}
+images {
+  image: "/assets/images/ui/sound_on.png"
+}
+images {
+  image: "/assets/images/ui/sound_off.png"
+}
+images {
+  image: "/assets/images/ui/lock.png"
+}
+images {
+  image: "/assets/images/ui/back.png"
+}
+images {
+  image: "/assets/images/ui/next.png"
+}
+images {
+  image: "/assets/images/ui/plus.png"
+}
+images {
+  image: "/assets/images/ui/minus.png"
+}
+images {
+  image: "/assets/images/ui/fit.png"
+}
+images {
+  image: "/assets/images/ui/hint.png"
+}
+images {
+  image: "/assets/images/ui/retry.png"
+}
+images {
+  image: "/assets/images/ui/coin.png"
+}
+images {
+  image: "/assets/images/ui/check.png"
+}
+images {
+  image: "/assets/images/ui/close.png"
+}
+images {
+  image: "/assets/images/ui/menu.png"
+}
+images {
+  image: "/assets/images/ui/stop.png"
+}
+images {
+  image: "/assets/images/ui/wrench.png"
+}
+images {
+  image: "/assets/images/ui/pedal_gas.png"
+}
+images {
+  image: "/assets/images/ui/pedal_brake.png"
+}
+images {
+  image: "/assets/images/ui/veh_moto.png"
+}
+images {
+  image: "/assets/images/ui/veh_car.png"
+}
+images {
+  image: "/assets/images/ui/veh_truck.png"
+}
+images {
+  image: "/assets/images/ui/mat_road.png"
+}
+images {
+  image: "/assets/images/ui/mat_steel_road.png"
+}
+images {
+  image: "/assets/images/ui/mat_boost.png"
+}
+images {
+  image: "/assets/images/ui/mat_bounce.png"
+}
+images {
+  image: "/assets/images/ui/mat_wood.png"
+}
+images {
+  image: "/assets/images/ui/mat_steel.png"
+}
+images {
+  image: "/assets/images/ui/mat_rope.png"
+}
+images {
+  image: "/assets/images/ui/mat_cable.png"
+}
+margin: 2
+extrude_borders: 2
+inner_padding: 0

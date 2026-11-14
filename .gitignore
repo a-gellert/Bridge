@@ -2,4 +2,8 @@
 /.internal
 /build
 .DS_Store
-Thumbs.db
+Thumbs.db/tests/node_modules
+/tests/package-lock.json
+/scene.json
+*.scene.json
+/bundle

@@ -1,0 +1,230 @@
+-- GUI controller: screens (menu / levels / build / drive + result popup), input routing, resize, toasts.
+-- Input order: keyboard shortcuts -> HUD (Druid) -> world (build gestures / drive pedals).
+
+-- gui.pick_node scales the input point by (window / display size) even with ADJUST_REFERENCE_DISABLED,
+-- while our nodes live in the virtual canvas. Wrap it so every hit test (Druid included) takes virtual
+-- coordinates. Must run before Druid is required (druid.helper caches gui.pick_node).
+local PICK = { kx = 1, ky = 1 }
+local raw_pick_node = gui.pick_node
+gui.pick_node = function(node, x, y)
+	return raw_pick_node(node, x * PICK.kx, y * PICK.ky)
+end
+
+local ui = require("gui.ui")
+local layout = require("gui.layout")
+local boot = require("platform.boot")
+local poki = require("platform.poki")
+local session = require("game.core.session")
+local events = require("game.core.events")
+local progress = require("game.core.progress")
+local levels = require("game.levels.levels")
+local i18n = require("game.core.i18n")
+local build_input = require("world.build_input")
+
+local SCREENS = {
+	menu = require("gui.screens.menu"),
+	levels = require("gui.screens.levels"),
+	build = require("gui.screens.build"),
+	drive = require("gui.screens.drive"),
+}
+local result_popup = require("gui.screens.result")
+
+local TOUCH = hash("touch")
+local TOUCH_MULTI = hash("touch_multi")
+
+local KEYS = { "gas", "brake", "go", "back", "reset", "erase", "undo", "zoom_in", "zoom_out" }
+for i = 1, 8 do KEYS[#KEYS + 1] = "mat_" .. i end
+
+local app = { screen = "menu", tip_shown = {}, gen = 0, key_names = {} }
+for _, k in ipairs(KEYS) do app.key_names[hash(k)] = k end
+
+local toast_node, toast_t = nil, 0
+
+-- ------------------------------------------------------------------ screens
+local function screen_for_state()
+	local s = session.state
+	if s == "build" then return "build" end
+	if s == "drive" or s == "result" then return "drive" end
+	return app.screen == "levels" and "levels" or "menu"
+end
+
+function app.rebuild()
+	app.gen = app.gen + 1
+	for _, s in pairs(SCREENS) do
+		if s.clear then s.clear() end
+	end
+	ui.final()
+	if app.root then gui.delete_node(app.root) end
+	toast_node = nil
+	app.root = ui.pane(nil, 0, 0)
+	ui.new_druid()
+	app.screen = screen_for_state()
+	SCREENS[app.screen].build(app, app.root)
+	if session.state == "result" and session.result then
+		result_popup.build(app, app.root, session.result)
+	end
+end
+
+function app.show(screen)
+	app.screen = screen
+	if session.state ~= "menu" then
+		session.exit_to_menu() -- emits "state" -> rebuild
+	else
+		app.rebuild()
+	end
+end
+
+function app.start_level(index)
+	if not progress.level_unlocked(index) then return end
+	session.load_level(index)
+end
+
+function app.next_level()
+	local nxt = (session.index or 0) + 1
+	if not levels.get(nxt) then
+		app.show("levels")
+		return
+	end
+	poki.commercial_break(nxt, function()
+		session.load_level(nxt)
+	end)
+end
+
+function app.toast(text, color)
+	if not app.root then return end
+	if toast_node then gui.delete_node(toast_node) end
+	local w = math.min(660, app.vw - 40)
+	toast_node = ui.panel(app.root, app.vw / 2, app.vh * (app.portrait and 0.62 or 0.66), w, 64, ui.hex("#151926", 0.9), 24)
+	ui.label(toast_node, text, 0, 2, 28, color or ui.WHITE, w - 30)
+	ui.pop(toast_node)
+	toast_t = 1.8
+end
+
+-- ------------------------------------------------------------------ size
+local function update_size()
+	local w, h = window.get_size()
+	if w == app.win_w and h == app.win_h then return false end
+	app.win_w, app.win_h = w, h
+	app.vw, app.vh, app.portrait = layout.virtual_size(w, h)
+	if w > 0 and h > 0 then
+		PICK.kx, PICK.ky = app.dw / w, app.dh / h
+		app.px_scale = h / app.vh
+		build_input.px_scale = app.px_scale
+	end
+	return true
+end
+
+-- ------------------------------------------------------------------ lifecycle
+function init(self)
+	msg.post(".", "acquire_input_focus")
+	boot.init()
+	ui.init(self)
+	events.subscribe("gui")
+	app.dw = sys.get_config_int("display.width", 1280)
+	app.dh = sys.get_config_int("display.height", 720)
+	app.touch = boot.is_touch()
+	update_size()
+	-- Poki "first seconds": a brand-new player starts building right away
+	if progress.total_stars() == 0 and not progress.get("tutorial_done") then
+		session.load_level(1)
+		events.drain("gui")
+	end
+	app.rebuild()
+end
+
+function final(self)
+	ui.final()
+	events.unsubscribe("gui")
+end
+
+function update(self, dt)
+	if update_size() then app.resize_t = 0.12 end
+	if app.resize_t then
+		app.resize_t = app.resize_t - dt
+		if app.resize_t <= 0 then
+			app.resize_t = nil
+			app.rebuild()
+		end
+	end
+	local evs = events.drain("gui")
+	if evs then
+		local need_rebuild = false
+		for _, e in ipairs(evs) do
+			if e.id == "state" or e.id == "level_loaded" then
+				need_rebuild = true
+			elseif not need_rebuild then
+				local scr = SCREENS[app.screen]
+				if scr.on_event then scr.on_event(app, e) end
+			end
+		end
+		if need_rebuild then
+			build_input.reset()
+			app.rebuild()
+		end
+	end
+	if poki.is_ad_active() then return end
+	local scr = SCREENS[app.screen]
+	if scr.update then scr.update(app, dt) end
+	if ui.druid then ui.druid:update(dt) end
+	if toast_node then
+		toast_t = toast_t - dt
+		if toast_t <= 0 then
+			local n = toast_node
+			toast_node = nil
+			gui.animate(n, "color.w", 0, gui.EASING_OUTQUAD, 0.3, 0, function() gui.delete_node(n) end)
+		end
+	end
+end
+
+-- Screen pixels -> virtual canvas units for Druid hit tests (screen_x/screen_y stay raw for the world).
+local function to_virtual(action)
+	local kx, ky = app.vw / app.dw, app.vh / app.dh
+	if action.x then
+		action.x, action.y = action.x * kx, action.y * ky
+		if action.dx then action.dx, action.dy = action.dx * kx, action.dy * ky end
+	end
+	if action.touch then
+		for i = 1, #action.touch do
+			local t = action.touch[i]
+			if t.x then t.x, t.y = t.x * kx, t.y * ky end
+			if t.dx then t.dx, t.dy = t.dx * kx, t.dy * ky end
+		end
+		if not action.x and action.touch[1] then
+			action.x, action.y = action.touch[1].x, action.touch[1].y
+			action.screen_x, action.screen_y = action.touch[1].screen_x, action.touch[1].screen_y
+		end
+	end
+end
+
+function on_input(self, action_id, action)
+	if poki.is_ad_active() then return true end
+	to_virtual(action)
+	local scr = SCREENS[app.screen]
+
+	-- keyboard
+	if action_id and app.key_names[action_id] then
+		if session.state == "result" and session.result then
+			return result_popup.on_key(app, action_id, action, session.result)
+		end
+		if scr.on_key then return scr.on_key(app, action_id, action) end
+		return false
+	end
+
+	-- a beam drag / pan that started in the world keeps the pointer until release
+	if app.screen == "build" and build_input.busy() then
+		build_input.on_input(action_id, action)
+		return true
+	end
+
+	local consumed = ui.druid and ui.druid:on_input(action_id, action) or false
+	if consumed then return true end
+
+	if app.screen == "build" and session.state == "build" then
+		return build_input.on_input(action_id, action)
+	elseif app.screen == "drive" and session.state == "drive" then
+		if action_id == TOUCH or action_id == TOUCH_MULTI then
+			return SCREENS.drive.on_input(app, action_id, action)
+		end
+	end
+	return false
+end

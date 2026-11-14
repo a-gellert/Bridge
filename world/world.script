@@ -1,0 +1,196 @@
+-- World controller: steps the session simulation, keeps the 3D views in sync with it, drives the camera,
+-- physical sound effects and particles. All visuals are spawned through factories next to this script.
+local boot = require("platform.boot")
+local poki = require("platform.poki")
+local audio = require("platform.audio")
+local session = require("game.core.session")
+local events = require("game.core.events")
+local progress = require("game.core.progress")
+local levels = require("game.levels.levels")
+local terrain = require("game.physics.terrain")
+local Blueprint = require("game.bridge.blueprint")
+local tuning = require("game.config.tuning")
+local themes = require("game.config.themes")
+local camera = require("world.camera")
+local level_view = require("world.level_view")
+local bridge_view = require("world.bridge_view")
+local vehicle_view = require("world.vehicle_view")
+local fx = require("world.fx")
+
+local ENGINE = "/sounds#engine"
+
+local function level_bounds(level)
+	local a = level.area or { level.start, -4, level.finish, 6 }
+	local x0 = math.min(level.start, a[1]) - 4
+	local x1 = math.max(level.finish, a[3]) + 4
+	local y0 = math.min(a[2], (level.water or level.kill_y or -8)) - 2
+	local y1 = a[4] + 10
+	return { x0, y0, x1, y1 }
+end
+
+local function fit_build(level, immediate)
+	local a = level.area or { level.start, -4, level.finish, 6 }
+	local x0, x1 = a[1] - 1.5, a[3] + 1.5
+	-- show a bit of both banks so the goal is readable
+	local min_w = 14
+	if x1 - x0 < min_w then
+		local c = (x0 + x1) * 0.5
+		x0, x1 = c - min_w * 0.5, c + min_w * 0.5
+	end
+	camera.bounds = level_bounds(level)
+	camera.fit(x0, a[2] - 1, x1, a[4] + 1.5, immediate)
+end
+
+-- Decorative scene behind the main menu: the last played level with the player's own bridge
+-- (never the reference solution of an unsolved level).
+local function show_menu_scene(self)
+	local index = math.max(1, math.min(levels.COUNT, progress.get("last_level") or 1))
+	local level = levels.get(index)
+	self.scene_level = level
+	self.geo = terrain.build(level)
+	level_view.build(level)
+	level_view.set_build_helpers(false)
+	local bp = Blueprint.new(level, self.geo)
+	local design = progress.design(level.id)
+	if not design and index == 1 then design = level.solution end
+	bp:load(design or {})
+	bridge_view.destroy()
+	bridge_view.sync(bp)
+	vehicle_view.destroy()
+	fx.clear()
+	fit_build(level, true)
+	self.menu_t = 0
+end
+
+local function on_level_loaded(self)
+	local level = session.level
+	self.geo = session.geo
+	fx.clear()
+	vehicle_view.destroy()
+	bridge_view.destroy()
+	level_view.build(level)
+	level_view.set_build_helpers(true)
+	bridge_view.sync(session.blueprint)
+	fit_build(level, true)
+end
+
+local function stop_engine(self)
+	if self.engine_on then
+		sound.stop(ENGINE)
+		self.engine_on = false
+	end
+end
+
+local function handle_event(self, e)
+	local id, d = e.id, e.data
+	if id == "level_loaded" then
+		on_level_loaded(self)
+	elseif id == "design_changed" or id == "hint" then
+		if session.blueprint then bridge_view.sync(session.blueprint) end
+	elseif id == "drive_started" then
+		level_view.set_build_helpers(false)
+		bridge_view.clear_build_helpers()
+		vehicle_view.create(session.run)
+		poki.gameplay_start()
+		if audio.is_enabled() then
+			sound.play(ENGINE, { gain = 0.35 })
+			self.engine_on = true
+		end
+	elseif id == "drive_stopped" then
+		vehicle_view.destroy()
+		fx.clear()
+		stop_engine(self)
+		poki.gameplay_stop()
+		level_view.set_build_helpers(true)
+		bridge_view.sync(session.blueprint)
+		fit_build(session.level, false)
+	elseif id == "beam_broken" then
+		fx.beam_break(d.x, d.y, d.mat)
+		local snd = (d.mat == "rope" or d.mat == "cable") and "snap" or ((d.mat == "steel" or d.mat == "steel_road") and "break_steel" or "break_wood")
+		audio.play(snd, 0.8, 0.9 + math.random() * 0.25)
+		camera.shake(0.18, 0.25)
+	elseif id == "portal" then
+		level_view.flash_portal(d.x, d.y)
+		audio.play("portal", 0.8)
+	elseif id == "bounce" then
+		audio.play("bounce", 0.8)
+	elseif id == "boost" then
+		audio.play("boost", 0.6)
+	elseif id == "run_finished" then
+		stop_engine(self)
+		poki.gameplay_stop()
+		if not d.won and session.run then
+			local cx, cy = session.run.vehicle:center()
+			if d.reason == "fell" and session.level.water then
+				fx.splash(cx, session.level.water, themes.get(session.level.theme).water)
+				audio.play("splash", 0.9)
+			else
+				fx.crash(cx, cy)
+				audio.play("crash", 0.9)
+				camera.shake(0.35, 0.4)
+			end
+		end
+	elseif id == "state" then
+		if d.state == "menu" then
+			stop_engine(self)
+			poki.gameplay_stop()
+			show_menu_scene(self)
+		end
+	end
+end
+
+function init(self)
+	boot.init()
+	events.subscribe("world")
+	self.engine_on = false
+	camera.set_window(window.get_size())
+	-- the GUI may have started a level before this script subscribed to events
+	if session.state == "menu" then
+		show_menu_scene(self)
+	elseif session.level then
+		on_level_loaded(self)
+	end
+end
+
+function final(self)
+	events.unsubscribe("world")
+	stop_engine(self)
+end
+
+function update(self, dt)
+	dt = math.min(dt, 0.1)
+	if not poki.is_ad_active() then
+		session.update(dt)
+	end
+	local evs = events.drain("world")
+	if evs then
+		for _, e in ipairs(evs) do handle_event(self, e) end
+	end
+
+	camera.set_window(window.get_size())
+	local state = session.state
+	if state == "build" then
+		bridge_view.update_build(dt, session)
+	elseif (state == "drive" or state == "result") and session.run then
+		local run = session.run
+		bridge_view.update_drive(dt, run)
+		vehicle_view.update(run, self.geo)
+		local cx, cy = run.vehicle:center()
+		local vx = run.vehicle:velocity()
+		camera.bounds = nil
+		camera.follow(cx, cy, tuning.CAM_DRIVE_SPAN, math.max(-2, math.min(4, vx * 0.35)))
+		if self.engine_on then
+			local spd = run.vehicle:speed()
+			go.set(ENGINE, "speed", 0.7 + math.min(1.4, spd / 10) + (session.input.gas and 0.2 or 0))
+		end
+	elseif state == "menu" and self.scene_level then
+		self.menu_t = (self.menu_t or 0) + dt
+		local a = self.scene_level.area or { 0, 0, 10, 5 }
+		local cx = (a[1] + a[3]) * 0.5 + math.sin(self.menu_t * 0.15) * 3
+		camera.tx = cx
+	end
+	level_view.update(dt)
+	fx.update(dt)
+	camera.update(dt)
+	msg.post("@render:", "set_camera", { view = camera.view, proj = camera.proj })
+end

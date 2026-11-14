@@ -1,18 +1,88 @@
-# Poki Game Template
+# Bridge Mad
 
-Template project for HTML5 games on [Poki](https://poki.com/). This project is configured specifically for HTML5 games released on Poki. The project has the latest version of Poki SDK added as a *game.project* dependency.
+Воксельная физическая головоломка для Poki (Defold, HTML5): строим мост из точки A в точку B и отправляем по нему транспорт.
 
-Note: When you beging working on your own Poki game it is recommended to lock which version of the Poki SDK you are using to ensure that your game runs without problems. Pick a Poki SDK version from the [list of releases](https://github.com/defold/extension-poki-sdk/releases) and update the Dependencies field in *game.project* to use this version.
+- **Мотоцикл** — ★, **машина** — ★★, **грузовик** — ★★★. Звёзды уровня = лучший доехавший транспорт: если сразу проехал грузовик, уровень получает все 3 звезды.
+- После заезда — экран результата: звёзды, кто доехал, сколько бюджета потрачено (сумма, % и рекорд).
+- 24 уровня в 4 главах (Зелёная долина, Красный каньон, Квантовая лаборатория, Безумные горы). Главы открываются звёздами, материалы появляются по ходу кампании.
+- 8 материалов: дорога, дерево, верёвка, сталь, трос, стальная дорога, ускоритель, батут. Элементы уровней: порталы, шипы, рампы, висячие скалы, опорные столбы.
+- Управление одинаково удобно мышью, тачем и с клавиатуры, в горизонтальной и в **вертикальной** ориентации (отдельные раскладки HUD).
 
+## Управление
 
-## Poki
+| | Мышь / клавиатура | Тач |
+|---|---|---|
+| Балка | тянуть от узла; с выбранным узлом призрак следует за курсором | тап по узлу, затем тап в конечную точку (цепочкой) или протянуть пальцем |
+| Удалить | правая кнопка / ластик (`E`) | ластик + тап по балке |
+| Камера | колесо — масштаб, тянуть пустое место — сдвиг, `+`/`-` | щипок, тянуть пустое место |
+| Материал | `1`…`8` | кнопки внизу |
+| Отмена | `Z` / `Backspace` | кнопка «Отмена» |
+| Пуск | `Space` / `Enter` | «ПУСК!» |
+| Газ / тормоз | `D`/`→`/`W`, `A`/`←`/`S` (в воздухе — наклон) | педали ГАЗ / ТОРМОЗ |
+| Чинить мост | `R` / `Esc` | «ЧИНИТЬ» |
 
-[Poki](https://poki.com/) is an online playground where players and game developers come together to play and create. The games on Poki are created by a diverse global game developer community.
+Транспорт едет сам (круиз), газ ускоряет, тормоз тормозит и сдаёт назад.
 
-Head over to the [Defold Poki SDK documentation](https://defold.com/extension-poki-sdk/) and the [Poki for Developers page](https://developers.poki.com/) to learn how integrate the Poki SDK in your game and how to join the Poki developer community.
+## Структура
 
+```
+game/                 чистый Lua без API Defold (тестируется в Node)
+  config/             tuning (константы), materials, vehicles, visuals (реестр моделей), themes
+  physics/            sim.lua (XPBD: узлы, балки, разрушение, контакты, шины), vehicle.lua, terrain.lua
+  bridge/             blueprint.lua (чертёж, бюджет, правила, undo, сохранение), snap.lua (сетка)
+  core/               run.lua (один заезд и судейство), session.lua (состояние уровня),
+                      progress.lua (звёзды/открытия/сохранения), events.lua, i18n.lua (en/ru)
+  levels/             levels.lua (индекс) + chapter1..4.lua (данные уровней с эталонными решениями)
+world/                3D-мир: world.script (оркестратор), camera, build_input (жесты стройки),
+                      level_view, bridge_view, vehicle_view, fx, spawn (фабрики через реестр)
+gui/                  app.gui_script (экраны, ввод, ресайз), ui.lua (кит на Druid), druid_style,
+                      layout.lua (виртуальный холст портрет/ландшафт), screens/*
+platform/             poki.lua (Poki SDK с безопасными заглушками), audio.lua, boot.lua
+render/               рендер: мир (перспектива) + полупрозрачные + GUI
+entities/             по одному .go на модель (их и заменяем)
+assets/               модели (.gltf), материалы/шейдеры, палитра, UI-атлас, шрифт, звуки
+tools/                gen_assets.js (процедурные ассеты), preview*.js (софтверные превью)
+tests/                Node + fengari: физика, уровни, сессия, рантайм на моке Defold
+```
 
+Скрипты не вызывают друг друга напрямую: общий Lua-стейт (`shared_state = 1`), состояние — в `game/core/session.lua`, уведомления — очереди `events.lua` (каждый скрипт читает свою очередь в своём `update`).
 
-## Defold for HTML5
+Физика своя (XPBD), встроенная физика Defold не используется (исключена в `main/game.appmanifest` — меньше билд). Силы физичны (`F = λ/h²`), поэтому прочность материалов задаётся в ньютонах и не зависит от числа подшагов.
 
-Learn more about HTML5 game development using Defold in the [official Defold documentation](https://defold.com/manuals/html5/). Pay extra attention to the [section on how to optimize your Defold game for HTML5](https://defold.com/manuals/html5/#optimizations).
+## Как заменить модель
+
+Логика никогда не ссылается на меши напрямую: только на id визуала из `game/config/visuals.lua`.
+
+1. Положите модель (`.glb`/`.gltf`/`.dae`) в `assets/` и укажите её в `entities/<id>.go` (поле `mesh`). Материал: `voxel.material` (непрозрачный) или `voxel_alpha.material`.
+2. Если размер, центр или поворот отличаются от стоковой модели, задайте `scale`, `offset`, `rot` в `game/config/visuals.lua`.
+3. Соглашения стоковых моделей (`tools/gen/models.js`): балки — 1 м вдоль X с центром в 0 (игра растягивает по длине), полотно толщиной 0,3 м, фермы в плоскостях z = ±1.38, транспорт — центр физического корпуса, колёса отдельными моделями.
+
+`node tools/gen_assets.js` перегенерирует стоковые ассеты, но **не трогает** существующие `entities/*.go` (ключ `--force` перезапишет их).
+
+## Как добавить контент
+
+- **Уровень** — запись в `game/levels/chapterN.lua` (формат описан в начале `chapter1.lua`). Обязательно поле `solution`: тест проверит, что эталон влезает в бюджет и правила, а грузовик по нему доезжает. Он же используется как подсказка (rewarded).
+- **Глава** — новый файл `chapterN.lua` + строка в `CHAPTER_MODULES` (`game/levels/levels.lua`) + тема в `game/config/themes.lua`.
+- **Материал** — запись в `game/config/materials.lua` (стоимость, длина, масса, жёсткость, пределы растяжения/сжатия, `rope`, `drivable`, `surface`) + визуал в `visuals.lua` + иконка `mat_<id>` в `tools/gen/ui.js`.
+- **Транспорт** — запись в `game/config/vehicles.lua` (корпус, колёса, мотор, подвеска, звёзды) + модели корпуса и колеса.
+
+Подбор уровня: `cd tests && CHAPTER=2 node run.js check_chapter.lua` печатает результаты каждого транспорта; `playground_*.lua` — песочницы физики.
+
+## Тесты
+
+```
+cd tests
+npm install
+node run.js          # все test_*.lua: core, levels (24 уровня, грузовик доезжает), session, runtime
+node syntax.js       # компиляция всех Lua-исходников
+```
+
+`test_runtime.lua` запускает настоящие `world.script`, `app.gui_script` и рендер-скрипт на моке API Defold и проходит игру через UI (тапы в экранных координатах, кнопки по надписям, клавиатура, портрет/ландшафт).
+
+Превью кадра без движка: `LEVEL=6 DRIVE=3 OUT=scene.json node run.js dump_scene.lua`, затем `node ../tools/preview.js scene.json out.png` и `node ../tools/preview_gui.js scene.json out.png out_ui.png`.
+
+## Сборка
+
+Откройте проект в Defold (1.9+), `Project → Fetch Libraries` (Poki SDK, Druid 1.3.0, defold-event), затем `Project → Bundle → HTML5`. Poki: правила рекламы и паузы соблюдены в `platform/poki.lua` (реклама только между уровнями с интервалом, звук глушится, игра не ждёт рекламу).
+
+Подробности дизайна — `GDD.md`, правила для агентов — `AGENT_GUIDELINES.md`.
