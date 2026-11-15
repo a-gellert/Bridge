@@ -7,4 +7,6 @@ Thumbs.db
 /tests/package-lock.json
 /scene.json
 *.scene.json
+/scene_*.json
+/preview*.png
 /bundle

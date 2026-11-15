@@ -3,6 +3,7 @@
 local boot = require("platform.boot")
 local poki = require("platform.poki")
 local audio = require("platform.audio")
+local haptics = require("platform.haptics")
 local session = require("game.core.session")
 local events = require("game.core.events")
 local progress = require("game.core.progress")
@@ -92,15 +93,22 @@ local function handle_event(self, e)
 		bridge_view.clear_build_helpers()
 		vehicle_view.create(session.run)
 		poki.gameplay_start()
+		poki.level_start(session.level and session.level.id)
+		self.measure_active = true
 		if audio.is_enabled() then
 			sound.play(ENGINE, { gain = 0.35 })
 			self.engine_on = true
 		end
 	elseif id == "drive_stopped" then
+		if self.measure_active then
+			poki.level_end(session.level and session.level.id, false)
+			self.measure_active = false
+		end
 		vehicle_view.destroy()
 		fx.clear()
 		stop_engine(self)
 		poki.gameplay_stop()
+		camera.set_speed_fov(0)
 		level_view.set_build_helpers(true)
 		bridge_view.sync(session.blueprint)
 		fit_build(session.level, false)
@@ -108,26 +116,65 @@ local function handle_event(self, e)
 		fx.beam_break(d.x, d.y, d.mat)
 		local snd = (d.mat == "rope" or d.mat == "cable") and "snap" or ((d.mat == "steel" or d.mat == "steel_road") and "break_steel" or "break_wood")
 		audio.play(snd, 0.8, 0.9 + math.random() * 0.25)
+		haptics.break_beam()
 		camera.shake(0.18, 0.25)
+	elseif id == "achievement" then
+		audio.play("achievement", 0.75)
+		haptics.vibrate("[20,40,20]", 0.25)
 	elseif id == "portal" then
+		if d.entry_x then level_view.flash_portal(d.entry_x, d.entry_y) end
 		level_view.flash_portal(d.x, d.y)
+		if d.entry_x then fx.portal_burst(d.entry_x, d.entry_y, { 0.35, 0.65, 1 }) end
+		fx.portal_burst(d.x, d.y, { 1, 0.6, 0.2 })
 		audio.play("portal", 0.8)
+		haptics.portal()
+		camera.shake(0.08, 0.15)
+		camera.drama(0.6, 0.3)
+	elseif id == "land" then
+		local p = d.power or 0.3
+		fx.dust(d.x, d.y, themes.get(session.level.theme).ground)
+		if p > 0.25 then
+			camera.shake(0.05 + p * 0.12, 0.1 + p * 0.12)
+			if p > 0.5 then haptics.vibrate(20, 0.1) end
+		end
 	elseif id == "bounce" then
 		audio.play("bounce", 0.8)
+		haptics.bounce()
+		camera.drama(0.7, 0.32)
+		if session.run then
+			local cx, cy = session.run.vehicle:center()
+			fx.dust(cx, cy - 0.7, { 0.5, 0.75, 1 })
+		end
 	elseif id == "boost" then
 		audio.play("boost", 0.6)
+		haptics.boost()
+		camera.drama(0.9, 0.3)
+		if session.run then
+			local cx, cy = session.run.vehicle:center()
+			fx.sparks(cx - 0.6, cy - 0.3, { 1, 0.62, 0.2 })
+		end
+	elseif id == "slowmo" then
+		camera.drama(1.0, 0.55)
 	elseif id == "run_finished" then
 		stop_engine(self)
 		poki.gameplay_stop()
-		if not d.won and session.run then
+		camera.set_speed_fov(0)
+		poki.level_end(session.level and session.level.id, d.won)
+		self.measure_active = false
+		if d.won then haptics.win() else haptics.crash() end
+		if session.run then
 			local cx, cy = session.run.vehicle:center()
-			if d.reason == "fell" and session.level.water then
+			if d.won then
+				fx.confetti(cx, cy)
+				audio.play("horn", 0.7, 0.9)
+			elseif d.reason == "fell" and session.level.water then
 				fx.splash(cx, session.level.water, themes.get(session.level.theme).water)
 				audio.play("splash", 0.9)
 			else
 				fx.crash(cx, cy)
 				audio.play("crash", 0.9)
 				camera.shake(0.35, 0.4)
+				camera.drama(0.8, 0.45)
 			end
 		end
 	elseif id == "state" then
@@ -143,6 +190,8 @@ function init(self)
 	boot.init()
 	events.subscribe("world")
 	self.engine_on = false
+	self.measure_active = false
+	self.perf_t, self.perf_n = 0, 0
 	camera.set_window(window.get_size())
 	-- the GUI may have started a level before this script subscribed to events
 	if session.state == "menu" then
@@ -168,22 +217,51 @@ function update(self, dt)
 	end
 
 	camera.set_window(window.get_size())
+	-- adaptive quality: drop the particle budget if frames are consistently slow
+	self.perf_t = (self.perf_t or 0) + dt
+	if self.perf_t > 2.5 then
+		if self.perf_t / (self.perf_n or 1) > 0.026 then
+			fx.set_budget(120)
+		else
+			fx.set_budget(240)
+		end
+		self.perf_t, self.perf_n = 0, 0
+	end
+	self.perf_n = (self.perf_n or 0) + 1
 	local state = session.state
 	if state == "build" then
+		camera.set_speed_fov(0)
 		bridge_view.update_build(dt, session)
 	elseif (state == "drive" or state == "result") and session.run then
 		local run = session.run
 		bridge_view.update_drive(dt, run)
 		vehicle_view.update(run, self.geo)
 		local cx, cy = run.vehicle:center()
-		local vx = run.vehicle:velocity()
+		local vx, vy = run.vehicle:velocity()
+		local spd = run.vehicle:speed()
 		camera.bounds = nil
 		camera.follow(cx, cy, tuning.CAM_DRIVE_SPAN, math.max(-2, math.min(4, vx * 0.35)))
+		camera.set_speed_fov(math.min(1, spd / tuning.CAM_DRIVE_SPAN))
+		-- structural creak: the player hears the bridge giving up before it snaps
+		local stress = run:stress()
+		if stress > 0.75 then
+			local k = math.min(1, (stress - 0.75) / 0.25)
+			audio.play("creak", 0.32 + 0.5 * k, 0.82 + 0.38 * k)
+		end
+		-- tire squeal when the wheels slide
+		local slip = run:slip()
+		if slip > 2.4 and spd > 3 then
+			audio.play("skid", 0.2 + math.min(0.35, slip * 0.05), 0.9 + math.min(0.25, slip * 0.03))
+			if slip > 5 and math.random() < 0.35 then
+				fx.smoke(cx, cy - 0.4, 0, { 0.45, 0.44, 0.42 }, 1)
+			end
+		end
 		if self.engine_on then
-			local spd = run.vehicle:speed()
-			go.set(ENGINE, "speed", 0.7 + math.min(1.4, spd / 10) + (session.input.gas and 0.2 or 0))
+			local gas = session.input.gas and 0.24 or 0
+			go.set(ENGINE, "speed", 0.66 + math.min(1.25, spd / 9) + gas + (stress > 0.82 and 0.08 or 0))
 		end
 	elseif state == "menu" and self.scene_level then
+		camera.set_speed_fov(0)
 		self.menu_t = (self.menu_t or 0) + dt
 		local a = self.scene_level.area or { 0, 0, 10, 5 }
 		local cx = (a[1] + a[3]) * 0.5 + math.sin(self.menu_t * 0.15) * 3
@@ -192,5 +270,5 @@ function update(self, dt)
 	level_view.update(dt)
 	fx.update(dt)
 	camera.update(dt)
-	msg.post("@render:", "set_camera", { view = camera.view, proj = camera.proj })
+	msg.post("@render:", "set_world_camera", { view = camera.view, proj = camera.proj })
 end

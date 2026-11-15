@@ -123,6 +123,7 @@ local function apply_spin(self, alpha, h)
 end
 
 function M:control(h)
+	for _, wh in ipairs(self.wheels) do wh.pre_vy = self.sim.vy[wh.p] end
 	if not self.enabled then
 		for _, wh in ipairs(self.wheels) do
 			wh.omega = wh.omega * max(0, 1 - 3 * h)
@@ -189,6 +190,14 @@ function M:post_substep(h)
 	local boosts, btx, bty = 0, 0, 0
 	for _, wh in ipairs(self.wheels) do
 		wh.angle = wh.angle - wh.omega * h -- visual spin (CW when rolling forward)
+		-- first contact after falling: remember the impact for dust / camera shake
+		if wh.contact and not wh.was_contact and (wh.pre_vy or 0) < -4 then
+			local power = math.min(1, (-wh.pre_vy - 4) / 10)
+			if not self.landed or power > self.landed.power then
+				self.landed = { x = sim.x[wh.p], y = sim.y[wh.p], power = power }
+			end
+		end
+		wh.was_contact = wh.contact
 		if wh.surface == "bounce" then
 			bounce_nx, bounce_ny = wh.snx, wh.sny
 		elseif wh.surface == "boost" then

@@ -151,7 +151,11 @@ end
 function go.set_position(p, id) obj(id).pos = vmath.vector3(p) end
 function go.get_position(id) return vmath.vector3(obj(id).pos) end
 function go.set_rotation(q, id) obj(id).rot = q end
-function go.set_scale(s, id) obj(id).scale = type(s) == "number" and vmath.vector3(s) or vmath.vector3(s) end
+function go.set_scale(s, id)
+	local v = type(s) == "number" and vmath.vector3(s, s, s) or vmath.vector3(s)
+	assert(v.x > 0 and v.y > 0 and v.z > 0, "Vector passed to go.set_scale contains components that are below or equal to zero")
+	obj(id).scale = v
+end
 function go.delete(id)
 	assert(M.objects[id], "go.delete of a missing object " .. tostring(id))
 	M.objects[id] = nil

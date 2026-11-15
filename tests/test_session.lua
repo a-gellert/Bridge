@@ -14,7 +14,9 @@ events.subscribe("test")
 
 assert(progress.level_unlocked(1), "level 1 open")
 assert(not progress.level_unlocked(2), "level 2 locked")
-assert(not progress.chapter_unlocked(2), "chapter 2 locked")
+assert(progress.chapter_unlocked(2), "any chapter can be visited")
+assert(progress.level_unlocked(levels.chapters[2].first), "chapter 2 level 1 open")
+assert(not progress.level_unlocked(levels.chapters[2].first + 1), "chapter 2 level 2 locked")
 
 local function drive(vehicle)
 	assert(session.start_drive(vehicle))
@@ -71,3 +73,16 @@ end
 
 -- persistence survived through the storage backend
 assert(store and store.levels["1-1"].stars == 3)
+
+-- dynamic assist: after three consecutive defeats the fail screen can offer +25% budget
+local last
+for _ = 1, 3 do
+	assert(session.load_level(1))
+	session.clear()
+	last = drive("moto")
+	assert(last and not last.won, "empty bridge must fail")
+end
+assert(last.can_assist, "assist offered after three defeats")
+assert(session.apply_budget_bonus(), "budget bonus applied")
+assert(session.blueprint.budget == 563, "450 + 25% = 563, got " .. tostring(session.blueprint.budget))
+assert(not session.apply_budget_bonus(), "bonus only once per attempt")

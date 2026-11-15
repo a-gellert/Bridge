@@ -24,7 +24,11 @@ function M.create(id, x, y, z, angle, sx, sy, sz)
 	local rot = vmath.quat_rotation_z(a)
 	local pos = V3(x or 0, y or 0, z or 0)
 	if def.offset then pos = pos + vmath.rotate(rot, V3(def.offset[1], def.offset[2], def.offset[3])) end
-	local scale = V3((sx or 1) * bx, (sy or sx or 1) * by, (sz or sx or 1) * bz)
+	local scale = V3(
+		math.max(0.0001, (sx or 1) * bx),
+		math.max(0.0001, (sy or sx or 1) * by),
+		math.max(0.0001, (sz or sx or 1) * bz)
+	)
 	return factory.create(visuals.factory(id), pos, rot, nil, scale)
 end
 
@@ -41,7 +45,9 @@ function M.set(id, go_id, x, y, z, angle, sx, sy, sz)
 	go.set_rotation(rot, go_id)
 	if sx then
 		local bx, by, bz = base_scale(def)
-		tmp_scale.x, tmp_scale.y, tmp_scale.z = sx * bx, (sy or sx) * by, (sz or sx) * bz
+		tmp_scale.x = math.max(0.0001, sx * bx)
+		tmp_scale.y = math.max(0.0001, (sy or sx) * by)
+		tmp_scale.z = math.max(0.0001, (sz or sx) * bz)
 		go.set_scale(tmp_scale, go_id)
 	end
 end

@@ -115,6 +115,36 @@ const SOUNDS = {
     const ln = lowpassNoise(0.5);
     return synth(0.5, (t, p, ph) => (ln() * 0.8 + Math.sin(ph(90)) * 0.5) * env(p, 0.003, 2.5) * 0.85);
   },
+  // structural warning: wood/metal under load (played while stress > 75%)
+  creak: () => {
+    const ln = lowpassNoise(0.12);
+    return synth(0.55, (t, p, ph) =>
+      (ln() * 1.1 + Math.sin(ph(140 + 90 * p)) * 0.25 + Math.sin(ph(310 - 160 * p)) * 0.12)
+      * Math.sin(Math.PI * p) * 0.7);
+  },
+  // victory car horn
+  horn: () => synth(0.8, (t, p, ph) =>
+    (Math.sin(ph(392)) * 0.4 + Math.sin(ph(523)) * 0.3 + sq(ph(196)) * 0.08)
+    * (p < 0.12 ? p / 0.12 : Math.pow(1 - (p - 0.12) / 0.88, 0.6)) * 0.7),
+  // tire squeal on sharp slides
+  skid: () => {
+    const ln = lowpassNoise(0.35);
+    return synth(0.32, (t, p) => ln() * 1.8 * Math.sin(Math.PI * Math.min(1, p * 6)) * 0.45);
+  },
+  purchase: () => synth(0.45, (t, p) => {
+    const notes = [660, 880, 1100];
+    const k = Math.min(2, Math.floor(p * 4));
+    const lp = (p * 4) % 1;
+    return (Math.sin(2 * Math.PI * notes[k] * t) * 0.4 + Math.sin(4 * Math.PI * notes[k] * t) * 0.1)
+      * env(lp, 0.01, 1.5) * 0.55;
+  }),
+  achievement: () => synth(0.7, (t, p) => {
+    const notes = [784, 988, 1318];
+    const k = Math.min(2, Math.floor(p * 4));
+    const f = notes[k];
+    return (Math.sin(2 * Math.PI * f * t) * 0.35 + Math.sin(2 * Math.PI * f * 2 * t) * 0.1)
+      * env((p * 4) % 1, 0.01, 1.4) * (1 - p * 0.4) * 0.7;
+  }),
 };
 
 function generate(root) {

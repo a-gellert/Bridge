@@ -8,7 +8,9 @@ local vehicles = require("game.config.vehicles")
 local progress = require("game.core.progress")
 local Blueprint = require("game.bridge.blueprint")
 local camera = require("world.camera")
-local poki = require("platform.poki")
+local layout = require("gui.layout")
+local ads = require("platform.ads")
+local haptics = require("platform.haptics")
 local audio = require("platform.audio")
 
 local M = {}
@@ -46,7 +48,7 @@ local function toggle_erase(app)
 end
 
 local function launch(app)
-	if session.blueprint:beam_count() == 0 and session.index > 1 then
+	if session.blueprint:beam_count() == 0 then
 		app.toast(i18n.t("tip_build_" .. (app.touch and "touch" or "pc")), ui.YELLOW)
 	end
 	session.start_drive(session.vehicle)
@@ -90,11 +92,14 @@ local function veh_button(app, parent, x, y, w, bh, v)
 end
 
 local function hint(app)
-	poki.rewarded_break(function(ok)
+	ads.offer_visible("hint")
+	ads.rewarded("hint", function(ok)
 		if ok and session.state == "build" then
 			session.apply_hint()
 			app.toast(i18n.t("hint_used"), ui.GREEN)
 			M.refresh(app)
+		elseif not ok then
+			app.toast(i18n.t("reward_failed"), ui.RED)
 		end
 	end)
 end
@@ -102,15 +107,17 @@ end
 function M.build(app, root)
 	h = { root = root, mats = {}, vehs = {} }
 	local vw, vh = app.vw, app.vh
-	local m = 14
+	local ml, mr, mt, mb = layout.margins(vw, vh, 14)
+	local m = ml
 	local lvl = session.level
 	local stacked = app.portrait or vw < 1180
+	local top_w = vw - ml - mr
 
 	-- ---------------------------------------------------------- top bar
 	local top_h = stacked and 150 or 88
-	local top = ui.panel(root, vw / 2, vh - m - top_h / 2, vw - 2 * m, top_h, ui.PANEL, 22)
+	local top = ui.panel(root, vw / 2, vh - mt - top_h / 2, top_w, top_h, ui.PANEL, 22)
 	ui.blocker(top)
-	local tw = vw - 2 * m
+	local tw = top_w
 	local row1 = stacked and top_h / 2 - 42 or 0
 	ui.btn(top, -tw / 2 + 50, row1, 80, 68, "", function()
 		session.exit_to_menu()
@@ -120,7 +127,12 @@ function M.build(app, root)
 	if stacked then
 		ui.label(top, title, -tw / 2 + 100, row1, 32, ui.WHITE, tw - 330, 1, gui.PIVOT_W)
 		ui.stars(top, tw / 2 - 160, row1, 30, stars, 32)
-		ui.btn(top, tw / 2 - 50, row1, 80, 68, "", function() hint(app) end, { icon = "hint", icon_size = 40, color = ui.ORANGE })
+		local hint_node = ui.btn(top, tw / 2 - 50, row1, 80, 68, "", function() hint(app) end, { icon = "hint", icon_size = 40, color = ui.ORANGE })
+		h.hint_btn = hint_node
+		if progress.fail_streak(lvl.id) >= 3 then
+			gui.set_color(hint_node, ui.YELLOW)
+			ui.pulse(hint_node, 1.12, 0.55)
+		end
 	else
 		ui.label(top, title, -tw / 2 + 100, 0, 32, ui.WHITE, tw * 0.3, 1, gui.PIVOT_W)
 		ui.stars(top, -tw / 2 + 100 + tw * 0.3 + 60, 0, 30, stars, 32)
@@ -145,7 +157,12 @@ function M.build(app, root)
 		M.refresh(app)
 	end, { icon = "trash", icon_size = 38 })
 	if not stacked then
-		ui.btn(top, tw / 2 - 26 - 4, row2, 52 + 8, 62, "", function() hint(app) end, { icon = "hint", icon_size = 36, color = ui.ORANGE })
+		local hint_node = ui.btn(top, tw / 2 - 26 - 4, row2, 52 + 8, 62, "", function() hint(app) end, { icon = "hint", icon_size = 36, color = ui.ORANGE })
+		h.hint_btn = hint_node
+		if progress.fail_streak(lvl.id) >= 3 then
+			gui.set_color(hint_node, ui.YELLOW)
+			ui.pulse(hint_node, 1.12, 0.55)
+		end
 	end
 
 	-- ---------------------------------------------------------- bottom
@@ -154,20 +171,20 @@ function M.build(app, root)
 	local bottom_h, mat_row_y, veh_row_y
 	if stacked then
 		bottom_h = 252
-		mat_row_y = m + bottom_h - 66
-		veh_row_y = m + 64
+		mat_row_y = mb + bottom_h - 66
+		veh_row_y = mb + 64
 	else
 		bottom_h = 132
-		mat_row_y = m + bottom_h / 2
+		mat_row_y = mb + bottom_h / 2
 		veh_row_y = mat_row_y
 	end
-	local bot = ui.panel(root, vw / 2, m + bottom_h / 2, vw - 2 * m, bottom_h, ui.PANEL, 22)
+	local bot = ui.panel(root, vw / 2, mb + bottom_h / 2, top_w, bottom_h, ui.PANEL, 22)
 	ui.blocker(bot)
 
 	-- vehicles + GO
 	local vb_w, vb_h, go_w = 96, 108, stacked and 220 or 190
 	local veh_total = 3 * vb_w + 2 * 10 + 16 + go_w
-	local vx0 = stacked and (vw / 2 - veh_total / 2) or (vw - m - 14 - veh_total)
+	local vx0 = stacked and (vw / 2 - veh_total / 2) or (vw - mr - 14 - veh_total)
 	for i, v in ipairs(vehicles.list) do
 		veh_button(app, root, vx0 + vb_w / 2 + (i - 1) * (vb_w + 10), veh_row_y, vb_w, vb_h, v)
 	end
@@ -177,7 +194,7 @@ function M.build(app, root)
 	ui.pulse(go_node, 1.03, 0.7)
 
 	-- materials (+ eraser)
-	local mat_area_w = stacked and (vw - 2 * m - 24) or (vx0 - m - 30)
+	local mat_area_w = stacked and (top_w - 24) or (vx0 - m - 30)
 	local mb_w = math.max(62, math.min(100, (mat_area_w - (nm - 1) * 8) / nm))
 	local mb_h = stacked and 116 or 112
 	local mx0 = stacked and (vw / 2 - (nm * mb_w + (nm - 1) * 8) / 2) or (m + 16)
@@ -193,7 +210,13 @@ function M.build(app, root)
 	h.erase = enode
 
 	-- HUD covers the screen top/bottom: tell the camera so the bridge stays in the free area
-	camera.set_insets((top_h + m) / vh, (bottom_h + m) / vh)
+	camera.set_insets((top_h + mt + 6) / vh, (bottom_h + mb + 6) / vh)
+
+	-- quick "fit the whole build zone" button (after panning / zooming away)
+	ui.round(root, ml + 42, mb + bottom_h + 50, 62, "fit", function()
+		local a = session.level.area or { session.level.start, -4, session.level.finish, 6 }
+		camera.fit(a[1] - 1.5, a[2] - 1, a[3] + 1.5, a[4] + 1.5, false)
+	end, { color = ui.PANEL, icon_size = 30 })
 
 	-- ghost info label (length / price / error), positioned every frame
 	h.info = ui.panel(root, 0, 0, 220, 50, ui.hex("#151926", 0.85), 20)
@@ -211,7 +234,7 @@ function M.build(app, root)
 	if tip_text and not app.tip_shown[lvl.id] then
 		app.tip_shown[lvl.id] = true
 		local tw2 = math.min(760, vw - 40)
-		local tip = ui.panel(root, vw / 2, vh - m - top_h - 70, tw2, 110, ui.hex("#FFF6D6", 0.97), 22)
+		local tip = ui.panel(root, vw / 2, vh - mt - top_h - 70, tw2, 110, ui.hex("#FFF6D6", 0.97), 22)
 		ui.icon(tip, "hint", -tw2 / 2 + 44, 0, 52, ui.ORANGE)
 		local tip_label = ui.label(tip, tip_text, 30, 0, 26, ui.INK, tw2 - 120, 3)
 		gui.set_outline(tip_label, ui.CLEAR)
@@ -219,6 +242,20 @@ function M.build(app, root)
 		h.tip = tip
 		h.tip_t = 9
 		ui.button(tip, function() gui.set_enabled(tip, false) h.tip = nil end, { silent = true })
+	end
+
+	-- animated ghost finger on the very first bridge: anchor -> anchor -> GO
+	h.go_node = go_node
+	if lvl.assist and not progress.get("tutorial_done") and session.blueprint:beam_count() == 0
+		and not app.tutorial_touched and lvl.anchors and #lvl.anchors >= 2 then
+		h.tut = {
+			t = 0,
+			a = lvl.anchors[1],
+			b = lvl.anchors[2],
+			line = ui.panel(root, 0, 0, 20, 9, ui.hex("#7CFFB0", 0.55), 5),
+			hand = ui.icon(root, "hand", 0, 0, 92, ui.WHITE),
+		}
+		ui.pulse(h.tut.hand, 1.12, 0.45)
 	end
 
 	M.refresh(app)
@@ -256,6 +293,39 @@ function M.update(app, dt)
 			gui.animate(tip, "color.w", 0, gui.EASING_OUTQUAD, 0.4, 0, function() gui.set_enabled(tip, false) end)
 		end
 	end
+	-- ghost finger: shows the drag once, disappears on the first touch
+	if h.tut then
+		local visible = not app.tutorial_touched and not progress.get("tutorial_done")
+			and session.blueprint and session.blueprint:beam_count() == 0
+		h.tut.t = h.tut.t + dt
+		if not visible or h.tut.t > 19 then
+			ui.delete(h.tut.hand)
+			ui.delete(h.tut.line)
+			h.tut = nil
+		else
+			local ax, ay = camera.world_to_screen(h.tut.a[1], h.tut.a[2], 1.3)
+			local bx, by = camera.world_to_screen(h.tut.b[1], h.tut.b[2], 1.3)
+			ax, ay = ax / app.px_scale, ay / app.px_scale
+			bx, by = bx / app.px_scale, by / app.px_scale
+			-- the dashed green target line becomes visible while the finger "pulls"
+			local line_w = math.max(20, math.abs(bx - ax))
+			gui.set_size(h.tut.line, V3(line_w, 9, 0))
+			gui.set_position(h.tut.line, V3((ax + bx) / 2, (ay + by) / 2 + 6, 0))
+			local phase = h.tut.t % 4.2
+			local hx, hy
+			if phase < 2.6 then
+				local k = 0.5 - 0.5 * math.cos(phase / 2.6 * math.pi * 2)
+				hx, hy = ax + (bx - ax) * k, ay + (by - ay) * k + 64
+				gui.set_color(h.tut.line, ui.hex("#7CFFB0", 0.18 + 0.4 * k))
+			else
+				local gp = gui.get_position(h.go_node)
+				local k = math.min(1, (phase - 2.6) / 1.2)
+				hx, hy = bx + (gp.x - bx) * k, by + 64 + (gp.y + 40 - by - 64) * k
+				gui.set_color(h.tut.line, ui.hex("#7CFFB0", 0.58 * (1 - k)))
+			end
+			gui.set_position(h.tut.hand, V3(hx, hy + math.sin(h.tut.t * 6) * 5, 0))
+		end
+	end
 end
 
 function M.on_event(app, e)
@@ -264,12 +334,18 @@ function M.on_event(app, e)
 		M.refresh(app)
 	elseif id == "built" then
 		audio.play("build", 0.8, 0.9 + math.random() * 0.2)
+		haptics.build()
 		if session.index == 1 and not progress.get("tutorial_done") then progress.set_setting("tutorial_done", true) end
+		app.tutorial_touched = true
 	elseif id == "erased" then
 		audio.play("erase", 0.6)
+		haptics.click()
 	elseif id == "build_failed" then
 		audio.play("error", 0.6)
+		haptics.vibrate("[30,30,30]", 0.2)
 		app.toast(i18n.t("err_" .. tostring(e.data.err)), ui.RED)
+	elseif id == "budget_bonus" then
+		app.toast(i18n.t("budget_bonus"), ui.GREEN)
 	end
 end
 

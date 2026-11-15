@@ -10,5 +10,5 @@ for _, lvl in ipairs(levels.list) do
 	if rep.results.truck ~= "won" then failures[#failures + 1] = lvl.id .. ": truck does not reach point B" end
 	if rep.empty == "won" then failures[#failures + 1] = lvl.id .. ": level is passable without building" end
 end
-assert(levels.COUNT == 24, "expected 24 levels, got " .. levels.COUNT)
+assert(levels.COUNT == 160, "expected 160 levels, got " .. levels.COUNT)
 if #failures > 0 then error("\n" .. table.concat(failures, "\n")) end

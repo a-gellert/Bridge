@@ -3,6 +3,9 @@
 local progress = require("game.core.progress")
 local i18n = require("game.core.i18n")
 local audio = require("platform.audio")
+local device = require("platform.device")
+local haptics = require("platform.haptics")
+local poki = require("platform.poki")
 
 local M = {}
 
@@ -35,17 +38,17 @@ function M.init()
 	end
 	i18n.set_lang(lang)
 	audio.set_enabled(progress.get("sound") ~= false)
+	haptics.set_enabled(progress.get("haptics") ~= false)
+	poki.loading_finished()
 end
 
 -- Touch-first device? (mobile apps and mobile browsers)
 function M.is_touch()
-	local info = sys.get_sys_info()
-	if info.system_name == "Android" or info.system_name == "iPhone OS" then return true end
-	if html5 then
-		local ok, r = pcall(html5.run, "(window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 1 : 0")
-		return ok and r == "1"
-	end
-	return false
+	return device.is_touch()
+end
+
+function M.haptics_supported()
+	return device.vibrate_supported() or device.is_mobile_native()
 end
 
 return M

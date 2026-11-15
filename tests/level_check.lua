@@ -25,6 +25,7 @@ function M.check(level, opts)
 	local geo = terrain.build(level)
 	local rep = { id = level.id, errors = {}, results = {} }
 	local function err(msg) rep.errors[#rep.errors + 1] = msg end
+	local function say(fmt, ...) if not opts.quiet then print(string.format(fmt, ...)) end end
 
 	-- anchors must not sit inside rock and must be in the build area
 	local bp = Blueprint.new(level, geo)
@@ -47,16 +48,20 @@ function M.check(level, opts)
 	for _, veh in ipairs(opts.vehicles or { "moto", "car", "truck" }) do
 		local run, ms = M.simulate(level, geo, bp, veh)
 		rep.results[veh] = run.status
-		print(string.format("   %-5s %-6s %-7s %-8s t=%5.2f broken=%d stress=%.2f  cost %d/%d", level.id, veh, run.status, tostring(run.reason), run.time, run.broken, ms, rep.cost, level.budget))
+		rep.detail = rep.detail or {}
+		rep.detail[veh] = { status = run.status, reason = run.reason, time = run.time, broken = run.broken, stress = ms }
+		say("   %-5s %-6s %-7s %-8s t=%5.2f broken=%d stress=%.2f  cost %d/%d", level.id, veh, run.status, tostring(run.reason), run.time, run.broken, ms, rep.cost, level.budget)
 	end
 
 	if opts.empty ~= false then
 		local empty = Blueprint.new(level, geo)
 		local run = M.simulate(level, geo, empty, "moto")
 		rep.empty = run.status
-		print(string.format("   %-5s empty  %-7s %s", level.id, run.status, tostring(run.reason)))
+		rep.detail = rep.detail or {}
+		rep.detail.empty = { status = run.status, reason = run.reason, time = run.time }
+		say("   %-5s empty  %-7s %s", level.id, run.status, tostring(run.reason))
 	end
-	for _, e in ipairs(rep.errors) do print("   !! " .. level.id .. ": " .. e) end
+	for _, e in ipairs(rep.errors) do say("   !! " .. level.id .. ": " .. e) end
 	return rep
 end
 

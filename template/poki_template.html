@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, minimal-ui, shrink-to-fit=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#1B2030">
+  <!-- The above meta tags must come first; any other head content must come after them -->
+  <title>{{project.title}} {{project.version}}</title>
+  <style type="text/css">
+    /* Safe-area insets exposed to Lua (platform/device.lua reads these variables). */
+    :root {
+      --sat: env(safe-area-inset-top, 0px);
+      --sab: env(safe-area-inset-bottom, 0px);
+      --sal: env(safe-area-inset-left, 0px);
+      --sar: env(safe-area-inset-right, 0px);
+      --bm-ink: #1b2030;
+      --bm-sky: #8ed2ff;
+      --bm-sky-top: #3e93de;
+      --bm-yellow: #ffd23f;
+      --bm-green: #35c97e;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background: var(--bm-ink);
+      color: #fff;
+      font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+      -webkit-tap-highlight-color: rgba(0,0,0,0);
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      -khtml-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+      touch-action: none;
+      position: fixed;
+    }
+
+    .canvas-app-container {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: linear-gradient(160deg, var(--bm-sky-top) 0%, var(--bm-sky) 55%, #d9f0ff 100%);
+    }
+
+    #canvas-container {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #canvas {
+      display: block;
+      outline: none;
+      border: 0;
+      width: 100% !important;
+      height: 100% !important;
+      touch-action: none;
+    }
+
+    canvas:focus, canvas:active { outline: none; border: 0; }
+
+    /* dmloader inserts its own tiny bar above the canvas: hide it, the branded bar below is used. */
+    #defold-progress { display: none !important; }
+
+    /* ------------------------------------------------------------------ splash */
+    #bm-splash {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 22px;
+      background:
+        radial-gradient(circle at 50% 35%, rgba(255,255,255,.28), rgba(255,255,255,0) 55%),
+        linear-gradient(165deg, var(--bm-sky-top), var(--bm-sky) 60%, #e6f6ff);
+      transition: opacity .45s ease, visibility .45s ease;
+    }
+    #bm-splash.bm-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+    .bm-logo {
+      width: min(62vw, 360px);
+      height: auto;
+      filter: drop-shadow(0 10px 0 rgba(20, 28, 48, .18));
+      animation: bm-bob 2.4s ease-in-out infinite;
+    }
+    @keyframes bm-bob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-7px) } }
+
+    .bm-tagline {
+      margin-top: -4px;
+      font-size: clamp(12px, 2.1vw, 18px);
+      letter-spacing: .16em;
+      color: #23415c;
+      font-weight: 700;
+      text-transform: uppercase;
+      opacity: .9;
+    }
+
+    .bm-track {
+      width: min(66vw, 380px);
+      height: 14px;
+      border-radius: 999px;
+      background: rgba(20, 32, 52, .18);
+      box-shadow: inset 0 2px 4px rgba(10, 20, 35, .2);
+      overflow: hidden;
+    }
+    #bm-fill {
+      height: 100%;
+      width: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #35c97e, #ffd23f);
+      transform: scaleX(0.04);
+      transform-origin: left center;
+      transition: transform .18s ease-out;
+    }
+    #bm-pct {
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      color: #23415c;
+      opacity: .75;
+    }
+
+    .bm-tips {
+      position: absolute;
+      left: 0; right: 0;
+      bottom: calc(18px + var(--sab));
+      text-align: center;
+      font-size: clamp(11px, 1.8vw, 15px);
+      color: #22415f;
+      opacity: .72;
+      padding: 0 24px;
+    }
+
+    /* warnings */
+    #running-from-file-warning, #webgl-not-supported {
+      display: none;
+      margin: 3em;
+      color: #1b2030;
+      position: relative;
+      z-index: 30;
+    }
+  </style>
+</head>
+<body>
+  <div id="app-container" class="canvas-app-container">
+    <div id="running-from-file-warning">
+      <h1>Running from local file</h1>
+      <p>Serve this folder from a web server (for example <code>python -m http.server</code>) instead of opening the file directly.</p>
+    </div>
+    <div id="webgl-not-supported">
+      <h1>WebGL not supported</h1>
+      <p>This browser cannot run the game. Try a current Chrome, Edge, Firefox or Safari.</p>
+    </div>
+
+    <div id="bm-splash">
+      <!-- Inline wordmark: no extra download, crisp on every screen. -->
+      <svg class="bm-logo" viewBox="0 0 360 120" role="img" aria-label="Bridge Mad">
+        <defs>
+          <linearGradient id="bm-g1" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ffe373"/>
+            <stop offset="1" stop-color="#ffb628"/>
+          </linearGradient>
+        </defs>
+        <g font-family="Trebuchet MS, Segoe UI, sans-serif" font-weight="900" text-anchor="middle">
+          <text x="180" y="55" font-size="54" fill="#1b2030" opacity=".22">BRIDGE</text>
+          <text x="180" y="51" font-size="54" fill="url(#bm-g1)" stroke="#1b2030" stroke-width="7" paint-order="stroke">BRIDGE</text>
+          <text x="180" y="103" font-size="44" fill="#1b2030" opacity=".22">MAD</text>
+          <text x="180" y="99" font-size="44" fill="#35c97e" stroke="#1b2030" stroke-width="6" paint-order="stroke">MAD</text>
+        </g>
+        <!-- little voxel truck -->
+        <g transform="translate(292 78)">
+          <rect x="0" y="0" width="40" height="18" rx="3" fill="#ffd23f" stroke="#1b2030" stroke-width="3"/>
+          <rect x="22" y="-10" width="18" height="12" rx="2" fill="#ffd23f" stroke="#1b2030" stroke-width="3"/>
+          <circle cx="10" cy="20" r="7" fill="#262d40" stroke="#1b2030" stroke-width="3"/>
+          <circle cx="32" cy="20" r="7" fill="#262d40" stroke="#1b2030" stroke-width="3"/>
+        </g>
+      </svg>
+      <div class="bm-tagline">build &middot; drive &middot; break</div>
+      <div class="bm-track"><div id="bm-fill"></div></div>
+      <div id="bm-pct">0%</div>
+      <div class="bm-tips">Drag from the red anchor to the other bank. Then press GO!</div>
+    </div>
+
+    <div id="canvas-container" class="canvas-app-canvas-container">
+      <canvas id="canvas" class="canvas-app-canvas" tabindex="1" width="{{display.width}}" height="{{display.height}}"></canvas>
+    </div>
+  </div>
+
+  <script>
+    if (typeof globalThis === 'undefined') { window.globalThis = window; }
+    // ---------------------------------------------------------------- branding helpers
+    (function () {
+      var splash = document.getElementById('bm-splash');
+      window.bmHideSplash = function () {
+        if (!splash || splash.classList.contains('bm-hidden')) return;
+        splash.classList.add('bm-hidden');
+        setTimeout(function () { if (splash.parentNode) splash.parentNode.removeChild(splash); }, 700);
+      };
+      // Browser autoplay policy: resume the WebAudio context on the first real gesture.
+      window.bmUnlockAudio = function () {
+        try {
+          var M = window.Module;
+          var shared = window._dmJSDeviceShared || (M && M._dmJSDeviceShared);
+          var ctx = (shared && shared.audioCtx) || (M && ((M.SDL2 && M.SDL2.audio && M.SDL2.audio.ctx) ||
+            (M.SDL && M.SDL.audio && M.SDL.audio.ctx) || M.audioContext));
+          if (ctx && ctx.state === 'suspended') {
+            var p = ctx.resume();
+            if (p && p.catch) p.catch(function () {});
+          }
+        } catch (e) { /* no audio context yet */ }
+      };
+      ['pointerdown', 'touchstart', 'mousedown', 'keydown'].forEach(function (ev) {
+        window.addEventListener(ev, window.bmUnlockAudio, { passive: true });
+      });
+      // No long-press menus, no browser zoom / scroll gestures over the game.
+      document.addEventListener('contextmenu', function (e) { e.preventDefault(); }, false);
+      document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, false);
+      document.addEventListener('dblclick', function (e) { e.preventDefault(); }, false);
+      var warning = document.getElementById('running-from-file-warning');
+      if (window.location.href.indexOf('file://') === 0) {
+        warning.style.display = 'block';
+        if (splash) splash.style.display = 'none';
+      }
+      document.addEventListener('DOMContentLoaded', function () {
+        try {
+          if (!(window.WebGLRenderingContext || window.WebGL2RenderingContext)) {
+            document.getElementById('webgl-not-supported').style.display = 'block';
+          }
+        } catch (e) {}
+      });
+    })();
+  </script>
+
+  <script id="engine-loader" type="text/javascript" src="dmloader.js"></script>
+  <script id="engine-setup" type="text/javascript">
+    var CUSTOM_PARAMETERS = {
+      disable_context_menu: true,
+      start_success: function () {
+        if (window.bmHideSplash) window.bmHideSplash();
+      },
+      update_progress: function (percentage) {
+        var p = Math.max(0, Math.min(100, percentage || 0));
+        var fill = document.getElementById('bm-fill');
+        var pct = document.getElementById('bm-pct');
+        if (fill) fill.style.transform = 'scaleX(' + Math.max(0.04, p / 100) + ')';
+        if (pct) pct.textContent = Math.round(p) + '%';
+        if (p >= 100) setTimeout(function () { if (window.bmHideSplash) window.bmHideSplash(); }, 1200);
+      }
+    };
+  </script>
+  <script id="engine-start" type="text/javascript">
+    (function () {
+      var warning = document.getElementById('running-from-file-warning');
+      if (window.location.href.indexOf('file://') === 0) {
+        if (warning) warning.style.display = 'block';
+      } else {
+        if (warning && warning.parentNode) warning.parentNode.removeChild(warning);
+        EngineLoader.load("canvas", "{{exe-name}}");
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -3,7 +3,8 @@ const fs = require("fs");
 const path = require("path");
 
 // Models drawn in the translucent pass (material voxel_alpha, predicate model_alpha)
-const ALPHA_MODELS = new Set(["water", "grid_dots", "zone", "portal_glow", "shadow"]);
+const ALPHA_MODELS = new Set(["water", "water_top", "water_wave", "grid_dots", "zone", "portal_glow", "shadow"]);
+const SKY_MODELS = new Set(["sky_band"]);
 
 function write(root, rel, text, { keep = false } = {}) {
   const file = path.join(root, rel);
@@ -51,11 +52,14 @@ function atlas(root, images) {
   write(root, "assets/images/ui.atlas", s);
 }
 
-function modelGo(id) {
+function modelGo(id, glbIds) {
   const alpha = ALPHA_MODELS.has(id);
-  const material = alpha ? "/assets/materials/voxel_alpha.material" : "/assets/materials/voxel.material";
+  const ext = glbIds && glbIds.has(id) ? "glb" : "gltf";
+  const material = SKY_MODELS.has(id)
+    ? "/assets/materials/sky.material"
+    : alpha ? "/assets/materials/voxel_alpha.material" : "/assets/materials/voxel.material";
   const data =
-    `mesh: \\"/assets/models/${id}.gltf\\"\\n` +
+    `mesh: \\"/assets/models/${id}.${ext}\\"\\n` +
     `name: \\"model\\"\\n` +
     `materials {\\n  name: \\"default\\"\\n  material: \\"${material}\\"\\n` +
     `  textures {\\n    sampler: \\"tex0\\"\\n    texture: \\"/assets/textures/palette.png\\"\\n  }\\n}\\n`;
@@ -63,10 +67,10 @@ function modelGo(id) {
 }
 
 // entities/<id>.go: written only if missing, so hand-made replacements survive regeneration
-function entities(root, ids, force) {
+function entities(root, ids, force, glbIds) {
   let n = 0;
   for (const id of ids) {
-    if (write(root, `entities/${id}.go`, modelGo(id), { keep: !force })) n++;
+    if (write(root, `entities/${id}.go`, modelGo(id, glbIds), { keep: !force })) n++;
   }
   return n;
 }

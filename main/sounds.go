@@ -83,3 +83,28 @@ embedded_components {
   type: "sound"
   data: "sound: \"/assets/sounds/crash.wav\"\nlooping: 0\ngroup: \"master\"\ngain: 1.0\n"
 }
+embedded_components {
+  id: "creak"
+  type: "sound"
+  data: "sound: \"/assets/sounds/creak.wav\"\nlooping: 0\ngroup: \"master\"\ngain: 1.0\n"
+}
+embedded_components {
+  id: "horn"
+  type: "sound"
+  data: "sound: \"/assets/sounds/horn.wav\"\nlooping: 0\ngroup: \"master\"\ngain: 1.0\n"
+}
+embedded_components {
+  id: "skid"
+  type: "sound"
+  data: "sound: \"/assets/sounds/skid.wav\"\nlooping: 0\ngroup: \"master\"\ngain: 1.0\n"
+}
+embedded_components {
+  id: "purchase"
+  type: "sound"
+  data: "sound: \"/assets/sounds/purchase.wav\"\nlooping: 0\ngroup: \"master\"\ngain: 1.0\n"
+}
+embedded_components {
+  id: "achievement"
+  type: "sound"
+  data: "sound: \"/assets/sounds/achievement.wav\"\nlooping: 0\ngroup: \"master\"\ngain: 1.0\n"
+}

@@ -11,15 +11,28 @@ const scene = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const OUT = process.argv[3] || "preview.png";
 const W = scene.w > 1400 ? Math.round(scene.w / 2) : scene.w;
 const H = scene.w > 1400 ? Math.round(scene.h / 2) : scene.h;
-const ALPHA = new Set(["water", "grid_dots", "zone", "portal_glow", "shadow"]);
+const ALPHA = new Set(["water", "water_top", "water_wave", "grid_dots", "zone", "portal_glow", "shadow"]);
+const UNLIT = new Set(["sky_band"]);
 
 const NAMES = Object.keys(COLORS);
 const RGB = NAMES.map((n) => png.hex(COLORS[n]).map((v) => v / 255));
 const meshCache = {};
+function readModel(name) {
+  const gltf = path.join(ROOT, "assets/models", name + ".gltf");
+  if (fs.existsSync(gltf)) {
+    const g = JSON.parse(fs.readFileSync(gltf, "utf8"));
+    return { g, bin: Buffer.from(g.buffers[0].uri.split(",")[1], "base64") };
+  }
+  // Blender-authored self-contained GLB (JSON chunk + BIN chunk)
+  const glb = fs.readFileSync(path.join(ROOT, "assets/models", name + ".glb"));
+  const jsonLen = glb.readUInt32LE(12);
+  const g = JSON.parse(glb.subarray(20, 20 + jsonLen).toString());
+  const binStart = 20 + jsonLen + 8; // skip BIN chunk header
+  return { g, bin: glb.subarray(binStart) };
+}
 function mesh(name) {
   if (meshCache[name]) return meshCache[name];
-  const g = JSON.parse(fs.readFileSync(path.join(ROOT, "assets/models", name + ".gltf"), "utf8"));
-  const bin = Buffer.from(g.buffers[0].uri.split(",")[1], "base64");
+  const { g, bin } = readModel(name);
   const acc = (i, Ctor, comps) => {
     const a = g.accessors[i], v = g.bufferViews[a.bufferView];
     return new Ctor(bin.buffer.slice(bin.byteOffset + v.byteOffset, bin.byteOffset + v.byteOffset + a.count * comps * Ctor.BYTES_PER_ELEMENT));
@@ -73,9 +86,20 @@ function drawObject(o, alpha) {
     const vi = m.idx[t];
     const nrm = wn[vi], base = m.col[vi];
     const ndl = Math.max(0, nrm[0] * L[0] + nrm[1] * L[1] + nrm[2] * L[2]);
-    const lf = 0.42 + ndl * 0.62 + (0.5 + 0.5 * nrm[1]) * 0.08;
-    let rgb = base.map((v, k) => v * o.t[k] * lf);
-    if (o.o[3] > 0) rgb = rgb.map((v, k) => v * (1 - o.o[3]) + o.o[k] * (0.55 + ndl * 0.55) * o.o[3]);
+    let rgb;
+    if (UNLIT.has(o.m)) {
+      rgb = base.map((v, k) => v * o.t[k]);
+    } else {
+      // must match assets/materials/voxel.fp
+      const sky = [0.72, 0.84, 1.0], sun = [1.0, 0.96, 0.88], bounce = [0.85, 0.78, 0.68];
+      const hemi = 0.5 + 0.5 * nrm[1];
+      const amb = 0.34 + 0.2 * hemi;
+      const dif = 0.55 * ndl;
+      const bou = 0.08 * Math.max(0, -nrm[1]);
+      const rim = Math.pow(1 - Math.max(0, nrm[2]), 3) * 0.05;
+      rgb = base.map((v, k) => v * o.t[k] * (sky[k] * (amb + rim) + sun[k] * dif + bounce[k] * bou));
+      if (o.o[3] > 0) rgb = rgb.map((v, k) => v * (1 - o.o[3]) + o.o[k] * (0.55 + ndl * 0.55) * o.o[3]);
+    }
     const al = alpha ? o.t[3] : 1;
     const minx = Math.max(0, Math.floor(Math.min(a[0], b[0], c[0]))), maxx = Math.min(W - 1, Math.ceil(Math.max(a[0], b[0], c[0])));
     const miny = Math.max(0, Math.floor(Math.min(a[1], b[1], c[1]))), maxy = Math.min(H - 1, Math.ceil(Math.max(a[1], b[1], c[1])));
@@ -101,9 +125,10 @@ function drawObject(o, alpha) {
   }
 }
 
-const opaque = scene.objects.filter((o) => !ALPHA.has(o.m));
+const sky = scene.objects.filter((o) => UNLIT.has(o.m));
+const opaque = scene.objects.filter((o) => !ALPHA.has(o.m) && !UNLIT.has(o.m));
 const trans = scene.objects.filter((o) => ALPHA.has(o.m)).sort((a, b) => a.p[2] - b.p[2]);
-const scaleFix = W / scene.w;
+for (const o of sky) drawObject(o, false);
 for (const o of opaque) drawObject(o, false);
 for (const o of trans) drawObject(o, true);
 const buf = Buffer.alloc(W * H * 4);

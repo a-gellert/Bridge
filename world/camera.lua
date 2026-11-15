@@ -14,6 +14,8 @@ M.insets = { top = 0, bottom = 0 }   -- fraction of screen height covered by HUD
 M.bounds = nil                       -- {x0, y0, x1, y1} the center may move in
 M.follow_rate = 6
 M.shake_t, M.shake_amp = 0, 0
+M.fov_add, M.fov_target = 0, 0   -- dynamic FOV (speed / boost)
+M.drama_t, M.drama_amp = 0, 0    -- extra FOV on slow-mo / heavy hits
 M.view = vmath.matrix4()
 M.proj = vmath.matrix4()
 
@@ -101,9 +103,22 @@ function M.shake(amp, time)
 	M.shake_t = max(M.shake_t, time or 0.3)
 end
 
+-- Wide-angle speed feel: 0 = normal, 1 = top speed.
+function M.set_speed_fov(k)
+	M.fov_target = (k or 0) * tuning.CAM_SPEED_FOV
+end
+
+-- Short cinematic punch (slow motion, big crash).
+function M.drama(amp, time)
+	M.drama_amp = max(M.drama_amp, (amp or 0.5) * tuning.CAM_DRAMA_FOV)
+	M.drama_t = max(M.drama_t, time or 0.45)
+end
+
 function M.compute()
-	local fov = tuning.CAM_FOV
-	local dist = (M.vh * 0.5) / tan(fov * 0.5)
+	local drama = 0
+	if M.drama_t > 0 then drama = M.drama_amp * min(1, M.drama_t * 3) end
+	local fov = tuning.CAM_FOV + M.fov_add + drama
+	local dist = (M.vh * 0.5) / tan(tuning.CAM_FOV * 0.5)
 	local sx, sy = 0, 0
 	if M.shake_t > 0 then
 		local a = M.shake_amp * min(1, M.shake_t * 3)
@@ -122,10 +137,13 @@ function M.update(dt)
 	M.cx = M.cx + (M.tx - M.cx) * k
 	M.cy = M.cy + (M.ty - M.cy) * k
 	M.vh = M.vh + (M.tvh - M.vh) * k
+	local fk = 1 - math.exp(-5 * dt)
+	M.fov_add = M.fov_add + (M.fov_target - M.fov_add) * fk
 	if M.shake_t > 0 then
 		M.shake_t = M.shake_t - dt
 		if M.shake_t <= 0 then M.shake_amp = 0 end
 	end
+	if M.drama_t > 0 then M.drama_t = M.drama_t - dt end
 	M.compute()
 end
 

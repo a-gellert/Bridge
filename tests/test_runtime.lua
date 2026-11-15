@@ -220,6 +220,52 @@ click_text("RU")
 frames(2)
 assert(find_text("PLAY  1-2") or find_text("PLAY  1-1"), "language switched to English")
 
+-- garage: select the owned classic paint, then back to the menu
+click_text("GARAGE")
+frames(3)
+assert(find_text("PAINT"), "garage paint tab")
+assert(find_text("Classic"), "garage shows the owned paint")
+click_text("Classic")
+frames(3)
+assert(find_text("EQUIPPED"), "owned skin can be equipped")
+press_key("back")
+frames(2)
+assert(find_text("AWARDS"), "back from the garage to the menu")
+
+-- achievements screen shows the unlocked first-bridge award
+click_text("AWARDS")
+frames(3)
+assert(find_text("First Engineer"), "unlocked achievement listed")
+press_key("back")
+frames(2)
+assert(find_text("PLAY  1-2") or find_text("PLAY  1-1"), "back from awards")
+
+-- dynamic assist UI: three defeats -> rewarded +25% budget button
+for _ = 1, 3 do
+	session.load_level(1)
+	session.clear()
+	session.start_drive("moto")
+	for _ = 1, 600 do
+		session.update(1 / 60)
+		if session.state == "result" then break end
+	end
+	assert(session.state == "result", "empty bridge run finished")
+end
+assert(session.result and session.result.can_assist, "assist is offered after three defeats")
+frames(5)
+assert(find_text("+25% BUDGET"), "budget assist button")
+click_text("+25% BUDGET")
+frames(4)
+assert(session.state == "build", "assist returns to the bridge")
+assert(session.blueprint.budget == 563, "budget bonus applied: " .. tostring(session.blueprint.budget))
+
+-- HUD survives desktop, tablet and tall phone canvases
+for _, s in ipairs({ { 1920, 1080 }, { 1024, 768 }, { 1170, 2532 } }) do
+	mock.window_w, mock.window_h = s[1], s[2]
+	frames(20)
+	assert(find_text("GO!") or find_text("ПУСК!"), "build HUD at " .. s[1] .. "x" .. s[2])
+end
+
 -- persistence went through sys.save
 local saved = mock.saved["bridge_mad/progress"]
 assert(saved and saved.levels["1-1"].stars == 3, "progress saved")

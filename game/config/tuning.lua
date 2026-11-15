@@ -17,7 +17,9 @@ M.BUILD_PLANE_Z = 1.3      -- touches are projected on the visible front face of
 M.MIN_BEAM = 0.99          -- shortest allowed beam (one grid step)
 M.LENGTH_SLACK = 1.055     -- beams may be 5.5% longer than max_len, so (3,1) fits a 3 m road and (4,1) a 4 m beam
 M.UNDO_LIMIT = 60
-M.TOUCH_TOLERANCE_PX = 34  -- finger radius used to pick nodes/beams (virtual px)
+M.TOUCH_TOLERANCE_PX = 34  -- finger radius used to pick nodes/beams (virtual px, mouse)
+M.TOUCH_TOLERANCE_TOUCH_PX = 48 -- bigger magnetic snap on touch screens
+M.TOUCH_OFFSET_PX = 42     -- the dragged beam target floats above the finger so it stays visible
 M.DRAG_THRESHOLD_PX = 10   -- movement before a press becomes a drag
 
 -- Contacts
@@ -36,6 +38,11 @@ M.PORTAL_RADIUS = 1.25
 M.PORTAL_COOLDOWN = 0.6
 M.PORTAL_FLOOR = 1.2       -- portal ring center height above the floor it stands on
 
+-- Slow motion / drama
+M.SLOWMO_RANGE = 2.6       -- m from the finish: a snapping beam triggers micro slow-mo
+M.SLOWMO_TIME = 0.42        -- seconds
+M.SLOWMO_SCALE = 0.30       -- simulation speed during slow-mo
+
 -- Camera
 M.CAM_FOV = math.rad(34)
 M.CAM_PITCH = math.rad(9)  -- looking slightly down
@@ -43,5 +50,7 @@ M.CAM_YAW = math.rad(-7)   -- looking slightly from the front-left
 M.CAM_MIN_VIEW = 7         -- min visible world height (zoomed in)
 M.CAM_MAX_VIEW = 60        -- max visible world height (zoomed out)
 M.CAM_DRIVE_SPAN = 20      -- world width the drive camera keeps visible
+M.CAM_SPEED_FOV = math.rad(6)   -- extra FOV at top speed (dynamic speed feel)
+M.CAM_DRAMA_FOV = math.rad(5)   -- extra FOV during slow-mo / big hits
 
 return M

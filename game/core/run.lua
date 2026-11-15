@@ -95,6 +95,17 @@ function M.new(level, geo, blueprint, vehicle_id)
 	self.events = {}
 	self.kill_y = level.water or level.kill_y or -12
 	self.broken = 0
+	-- feedback / achievement counters
+	self.portals = 0
+	self.bounces = 0
+	self.boosts = 0
+	self.used_brake = false
+	self.air_rot = 0
+	self.prev_angle = self.vehicle:angle()
+	self.trick_landed = false
+	self.slowmo_t = 0
+	self.slowmo_cd = 0
+	self.max_stress = 0
 	return self
 end
 
@@ -153,7 +164,8 @@ local function check_portals(self)
 				end
 				v:teleport(tx, ty, body, nbx * speed, nby * speed)
 				self.portal_cd = tuning.PORTAL_COOLDOWN
-				emit(self, { type = "portal", index = i, x = b.x, y = b.y })
+				self.portals = self.portals + 1
+				emit(self, { type = "portal", index = i, x = b.x, y = b.y, entry_x = a.x, entry_y = a.y })
 				return
 			end
 		end
@@ -207,12 +219,22 @@ local function judge(self, dt)
 	end
 end
 
+-- Shortest signed difference between two angles.
+local function angle_delta(a, b)
+	local d = (b - a + math.pi) % (2 * math.pi) - math.pi
+	return d
+end
+
 -- One fixed simulation step.
 function M:step()
 	local dt = tuning.FIXED_DT
 	if self.portal_cd > 0 then self.portal_cd = self.portal_cd - dt end
+	if self.slowmo_cd > 0 then self.slowmo_cd = self.slowmo_cd - dt end
 	self.sim:step(dt)
 	self.time = self.time + dt
+	self.max_stress = self.sim.max_stress or 0
+	local v = self.vehicle
+	if v.input.brake then self.used_brake = true end
 	local ev = self.sim:pop_events()
 	if ev then
 		for _, e in ipairs(ev) do
@@ -221,22 +243,68 @@ function M:step()
 				local c = e.beam
 				local x, y = self.sim.x, self.sim.y
 				emit(self, { type = "break", id = c.id, mat = c.mat, x = (x[c.a] + x[c.b]) * 0.5, y = (y[c.a] + y[c.b]) * 0.5 })
+				-- dramatic rescue: the bridge snapped close to the goal -> micro slow motion
+				if self.status == M.RUNNING and self.slowmo_cd <= 0 then
+					local cx = select(1, v:center())
+					if math.abs(cx - self.level.finish) < tuning.SLOWMO_RANGE then
+						self.slowmo_t = tuning.SLOWMO_TIME
+						self.slowmo_cd = 2.0
+						emit(self, { type = "slowmo" })
+					end
+				end
 			end
 		end
 	end
-	local v = self.vehicle
+	-- air rotation: a full 360 that lands on the wheels is an achievement-worthy trick
+	local a = v:angle()
+	if not v.grounded then
+		self.air_rot = self.air_rot + math.abs(angle_delta(self.prev_angle, a))
+		if self.air_rot >= 2 * math.pi - 0.35 then self.trick_ready = true end
+	else
+		if self.trick_ready and v:up_y() > 0.25 then self.trick_landed = true end
+		self.air_rot = 0
+		self.trick_ready = false
+	end
+	self.prev_angle = a
+	if v.landed then
+		local l = v.landed
+		v.landed = nil
+		emit(self, { type = "land", x = l.x, y = l.y, power = l.power })
+	end
 	if v.bounced then
 		v.bounced = false
+		self.bounces = self.bounces + 1
 		emit(self, { type = "bounce" })
 	end
 	if v.boosted then
 		v.boosted = false
+		self.boosts = self.boosts + 1
 		if not self.boost_sent then emit(self, { type = "boost" }) end
 		self.boost_sent = true
 	else
 		self.boost_sent = false
 	end
 	judge(self, dt)
+end
+
+-- Peak stress of the bridge during the current step (0..1+).
+function M:stress()
+	return self.max_stress or 0
+end
+
+-- How much the driven wheels slide against the ground (m/s). Used for tire squeal / smoke.
+function M:slip()
+	local vx, vy = self.vehicle:velocity()
+	local speed = sqrt(vx * vx + vy * vy)
+	local slip = 0
+	for _, wh in ipairs(self.vehicle.wheels) do
+		if wh.contact then
+			local ws = abs(wh.omega * wh.r)
+			local s = abs(ws - speed)
+			if s > slip then slip = s end
+		end
+	end
+	return slip
 end
 
 -- Advance by a frame time using fixed steps. Returns the number of steps taken.

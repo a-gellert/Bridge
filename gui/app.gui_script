@@ -14,9 +14,13 @@ local ui = require("gui.ui")
 local layout = require("gui.layout")
 local boot = require("platform.boot")
 local poki = require("platform.poki")
+local ads = require("platform.ads")
+local device = require("platform.device")
+local haptics = require("platform.haptics")
 local session = require("game.core.session")
 local events = require("game.core.events")
 local progress = require("game.core.progress")
+local achievements = require("game.core.achievements")
 local levels = require("game.levels.levels")
 local i18n = require("game.core.i18n")
 local build_input = require("world.build_input")
@@ -24,6 +28,8 @@ local build_input = require("world.build_input")
 local SCREENS = {
 	menu = require("gui.screens.menu"),
 	levels = require("gui.screens.levels"),
+	garage = require("gui.screens.garage"),
+	achievements = require("gui.screens.achievements"),
 	build = require("gui.screens.build"),
 	drive = require("gui.screens.drive"),
 }
@@ -39,13 +45,18 @@ local app = { screen = "menu", tip_shown = {}, gen = 0, key_names = {} }
 for _, k in ipairs(KEYS) do app.key_names[hash(k)] = k end
 
 local toast_node, toast_t = nil, 0
+local toast_queue = {}
+local next_toast
 
 -- ------------------------------------------------------------------ screens
 local function screen_for_state()
 	local s = session.state
 	if s == "build" then return "build" end
 	if s == "drive" or s == "result" then return "drive" end
-	return app.screen == "levels" and "levels" or "menu"
+	if app.screen == "levels" or app.screen == "garage" or app.screen == "achievements" then
+		return app.screen
+	end
+	return "menu"
 end
 
 function app.rebuild()
@@ -56,6 +67,8 @@ function app.rebuild()
 	ui.final()
 	if app.root then gui.delete_node(app.root) end
 	toast_node = nil
+	app.pause_layer = nil
+	app.exit_layer = nil
 	app.root = ui.pane(nil, 0, 0)
 	ui.new_druid()
 	app.screen = screen_for_state()
@@ -63,6 +76,13 @@ function app.rebuild()
 	if session.state == "result" and session.result then
 		result_popup.build(app, app.root, session.result)
 	end
+	if app.paused then app.build_pause_overlay() end
+	if app.toast_next then
+		local t = app.toast_next
+		app.toast_next = nil
+		app.toast(t.text, t.color)
+	end
+	next_toast()
 end
 
 function app.show(screen)
@@ -85,14 +105,74 @@ function app.next_level()
 		app.show("levels")
 		return
 	end
-	poki.commercial_break(nxt, function()
+	ads.interstitial("next_" .. tostring(nxt), function()
 		session.load_level(nxt)
 	end)
 end
 
+-- Pause overlay: blocks the world while the browser tab is hidden, and requires one
+-- deliberate tap before play resumes (Poki lifecycle requirement).
+function app.build_pause_overlay()
+	if not app.root or app.pause_layer then return end
+	local vw, vh = app.vw, app.vh
+	local dim = ui.box(app.root, "white", vw / 2, vh / 2, vw, vh, ui.hex("#0B0E16", 0.72))
+	ui.blocker(dim)
+	local panel = ui.panel(dim, 0, 0, math.min(520, vw - 60), 190, ui.PANEL, 28)
+	ui.blocker(panel)
+	ui.text(panel, i18n.t("paused"), 0, 32, 44, ui.YELLOW)
+	ui.label(panel, i18n.t("tap_resume"), 0, -40, 26, ui.WHITE, 440)
+	app.pause_layer = dim
+	ui.fade_in(dim, 0.18)
+end
+
+function app.clear_pause_overlay()
+	if app.pause_layer then
+		ui.delete(app.pause_layer)
+		app.pause_layer = nil
+	end
+end
+
+-- Android hardware Back on the main menu: ask before closing the app.
+function app.confirm_exit()
+	if app.exit_layer or not app.root then return end
+	local vw, vh = app.vw, app.vh
+	local dim = ui.box(app.root, "white", vw / 2, vh / 2, vw, vh, ui.hex("#0B0E16", 0.65))
+	ui.blocker(dim)
+	local panel = ui.panel(dim, 0, 0, math.min(560, vw - 60), 220, ui.PANEL, 28)
+	ui.blocker(panel)
+	ui.text(panel, i18n.t("exit_title"), 0, 52, 34, ui.WHITE)
+	local bw = (math.min(560, vw - 60) - 50) / 2
+	ui.btn(panel, -bw / 2 - 8, -46, bw, 78, i18n.t("exit_yes"), function()
+		if sys and sys.exit then pcall(sys.exit, 0) end
+	end, { color = ui.PANEL_LT, icon = "close", icon_size = 34, size = 28 })
+	ui.btn(panel, bw / 2 + 8, -46, bw, 78, i18n.t("exit_no"), function()
+		ui.delete(dim)
+		app.exit_layer = nil
+	end, { color = ui.GREEN, icon = "back", icon_size = 34, size = 28 })
+	app.exit_layer = dim
+end
+
+function app.set_paused(on)
+	if on == app.paused then return end
+	app.paused = on and true or false
+	if on then
+		session.set_paused(true)
+		if session.state == "drive" then poki.gameplay_stop() end
+		app.build_pause_overlay()
+	else
+		app.clear_pause_overlay()
+		session.set_paused(false)
+		if session.state == "drive" then poki.gameplay_start() end
+	end
+end
+
 function app.toast(text, color)
 	if not app.root then return end
-	if toast_node then gui.delete_node(toast_node) end
+	-- never replace a visible toast: queue it so rapid achievement unlocks are all readable
+	if toast_node then
+		toast_queue[#toast_queue + 1] = { text = text, color = color }
+		return
+	end
 	local w = math.min(660, app.vw - 40)
 	toast_node = ui.panel(app.root, app.vw / 2, app.vh * (app.portrait and 0.62 or 0.66), w, 64, ui.hex("#151926", 0.9), 24)
 	ui.label(toast_node, text, 0, 2, 28, color or ui.WHITE, w - 30)
@@ -100,18 +180,29 @@ function app.toast(text, color)
 	toast_t = 1.8
 end
 
+next_toast = function()
+	if toast_node or #toast_queue == 0 then return end
+	local t = table.remove(toast_queue, 1)
+	app.toast(t.text, t.color)
+end
+
 -- ------------------------------------------------------------------ size
 local function update_size()
 	local w, h = window.get_size()
-	if w == app.win_w and h == app.win_h then return false end
-	app.win_w, app.win_h = w, h
-	app.vw, app.vh, app.portrait = layout.virtual_size(w, h)
-	if w > 0 and h > 0 then
-		PICK.kx, PICK.ky = app.dw / w, app.dh / h
-		app.px_scale = h / app.vh
-		build_input.px_scale = app.px_scale
+	local changed = w ~= app.win_w or h ~= app.win_h
+	if changed then
+		app.win_w, app.win_h = w, h
+		app.vw, app.vh, app.portrait = layout.virtual_size(w, h)
+		device.safe_insets(true)
+		layout.set_safe_insets(device.safe_insets())
+		if w > 0 and h > 0 then
+			PICK.kx, PICK.ky = app.dw / w, app.dh / h
+			app.px_scale = h / app.vh
+			build_input.px_scale = app.px_scale
+			build_input.touch = app.touch
+		end
 	end
-	return true
+	return changed
 end
 
 -- ------------------------------------------------------------------ lifecycle
@@ -123,7 +214,18 @@ function init(self)
 	app.dw = sys.get_config_int("display.width", 1280)
 	app.dh = sys.get_config_int("display.height", 720)
 	app.touch = boot.is_touch()
+	haptics.set_enabled(progress.get("haptics") ~= false)
 	update_size()
+	-- Keep ads/pause honest when the tab loses focus (Poki lifecycle requirement).
+	if window.set_listener then
+		pcall(window.set_listener, function(_, event)
+			if event == window.WINDOW_EVENT_FOCUS_LOST or event == window.WINDOW_EVENT_ICONIFIED then
+				app.focus_lost = true
+			elseif event == window.WINDOW_EVENT_FOCUS_GAINED or event == window.WINDOW_EVENT_DEICONIFIED then
+				app.focus_gained = true
+			end
+		end)
+	end
 	-- Poki "first seconds": a brand-new player starts building right away
 	if progress.total_stars() == 0 and not progress.get("tutorial_done") then
 		session.load_level(1)
@@ -146,13 +248,39 @@ function update(self, dt)
 			app.rebuild()
 		end
 	end
+	-- focus events arrive outside the normal update: handle them here, once
+	if app.focus_lost then
+		app.focus_lost = nil
+		if not poki.is_ad_active() and (session.state == "drive" or session.state == "result") then
+			app.set_paused(true)
+		end
+	end
+	if app.focus_gained then
+		app.focus_gained = nil
+		-- stay paused until the player taps: returning to a live run must be deliberate
+	end
 	local evs = events.drain("gui")
 	if evs then
 		local need_rebuild = false
+		local will_rebuild = false
+		for _, e in ipairs(evs) do
+			if e.id == "state" or e.id == "level_loaded" then will_rebuild = true end
+		end
 		for _, e in ipairs(evs) do
 			if e.id == "state" or e.id == "level_loaded" then
 				need_rebuild = true
 			elseif not need_rebuild then
+				if e.id == "achievement" then
+					local a = achievements.by_id[e.data.id]
+					if a then
+						local text = i18n.f("ach_toast", i18n.t("ach_" .. a.id))
+						if will_rebuild then
+							app.toast_next = { text = text, color = ui.YELLOW }
+						else
+							app.toast(text, ui.YELLOW)
+						end
+					end
+				end
 				local scr = SCREENS[app.screen]
 				if scr.on_event then scr.on_event(app, e) end
 			end
@@ -163,6 +291,10 @@ function update(self, dt)
 		end
 	end
 	if poki.is_ad_active() then return end
+	if app.paused then
+		if ui.druid then ui.druid:update(dt) end
+		return
+	end
 	local scr = SCREENS[app.screen]
 	if scr.update then scr.update(app, dt) end
 	if ui.druid then ui.druid:update(dt) end
@@ -172,6 +304,7 @@ function update(self, dt)
 			local n = toast_node
 			toast_node = nil
 			gui.animate(n, "color.w", 0, gui.EASING_OUTQUAD, 0.3, 0, function() gui.delete_node(n) end)
+			next_toast()
 		end
 	end
 end
@@ -198,7 +331,13 @@ end
 
 function on_input(self, action_id, action)
 	if poki.is_ad_active() then return true end
+	-- the pause overlay takes exactly one deliberate input
+	if app.paused then
+		if action.pressed then app.set_paused(false) end
+		return true
+	end
 	to_virtual(action)
+	if app.screen == "build" and action.pressed and session.state == "build" then app.tutorial_touched = true end
 	local scr = SCREENS[app.screen]
 
 	-- keyboard

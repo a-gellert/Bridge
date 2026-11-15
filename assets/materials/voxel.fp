@@ -23,10 +23,20 @@ void main()
     vec3 n = normalize(var_normal);
     vec3 l = normalize(var_light.xyz);
     float ndl = max(dot(n, l), 0.0);
-    // soft sky fill from above + key light: readable voxels without shadow maps
-    float sky = 0.5 + 0.5 * n.y;
-    float light_factor = 0.42 + ndl * 0.62 + sky * 0.08;
-    vec3 lit = base.rgb * tint.rgb * light_factor;
-    lit = mix(lit, overlay.rgb * (0.55 + ndl * 0.55), overlay.w);
+
+    // warm key light + cool sky fill + a touch of ground bounce: voxels stay readable
+    // without shadow maps, and vertical faces get a slight rim so silhouettes pop.
+    vec3 sky_col = vec3(0.72, 0.84, 1.0);
+    vec3 sun_col = vec3(1.0, 0.96, 0.88);
+    vec3 bounce_col = vec3(0.85, 0.78, 0.68);
+    float hemi = 0.5 + 0.5 * n.y;
+    float amb = 0.34 + 0.2 * hemi;
+    float bounce = 0.08 * max(-n.y, 0.0);
+    float rim = pow(1.0 - max(n.z, 0.0), 3.0) * 0.05;
+
+    vec3 light = sky_col * (amb + rim) + sun_col * (ndl * 0.55) + bounce_col * bounce;
+    vec3 lit = base.rgb * tint.rgb * light;
+    float mix_amount = overlay.w;
+    lit = mix(lit, overlay.rgb * (0.55 + ndl * 0.55), mix_amount);
     out_fragColor = vec4(lit, base.a * tint.w);
 }

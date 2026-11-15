@@ -1,12 +1,13 @@
--- World pass (perspective camera from world/camera.lua via "set_camera") + translucent pass + GUI pass.
+-- World pass (perspective camera from world/camera.lua via "set_world_camera") + translucent pass + GUI pass.
 -- The GUI lives in a virtual canvas (gui/layout.lua) stretched over the whole window.
 local layout = require("gui.layout")
 
-local MSG_SET_CAMERA = hash("set_camera")
+local MSG_SET_CAMERA = hash("set_world_camera")
 local MSG_CLEAR_COLOR = hash("clear_color")
 local IDENTITY = vmath.matrix4()
 
 function init(self)
+	self.pred_sky = render.predicate({ "sky" })
 	self.pred_model = render.predicate({ "model" })
 	self.pred_alpha = render.predicate({ "model_alpha" })
 	self.pred_gui = render.predicate({ "gui" })
@@ -28,13 +29,18 @@ function update(self)
 	render.clear(self.clear)
 	render.set_viewport(0, 0, w, h)
 
-	-- 3D world
+	-- sky gradient: unlit quads behind everything, drawn before the depth-tested world
 	render.set_view(self.view)
 	render.set_projection(self.proj)
 	local frustum = self.proj * self.view
+	render.disable_state(graphics.STATE_DEPTH_TEST)
+	render.disable_state(graphics.STATE_CULL_FACE)
+	render.disable_state(graphics.STATE_BLEND)
+	render.draw(self.pred_sky, { frustum = frustum })
+
+	-- 3D world
 	render.enable_state(graphics.STATE_DEPTH_TEST)
 	render.enable_state(graphics.STATE_CULL_FACE)
-	render.disable_state(graphics.STATE_BLEND)
 	render.draw(self.pred_model, { frustum = frustum })
 
 	-- translucent: water, build grid, shadows, portal glow

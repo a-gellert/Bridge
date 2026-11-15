@@ -6,6 +6,7 @@ local i18n = require("game.core.i18n")
 local session = require("game.core.session")
 local vehicles = require("game.config.vehicles")
 local audio = require("platform.audio")
+local ads = require("platform.ads")
 
 local M = {}
 
@@ -23,7 +24,7 @@ function M.build(app, root, res)
 	ui.fade_in(dim, 0.25)
 
 	local pw = math.min(app.portrait and 660 or 680, vw - 40)
-	local ph = res.won and 560 or 400
+	local ph = res.won and 640 or (res.can_assist and 520 or 400)
 	local panel = ui.panel(root, vw / 2, vh / 2, pw, ph, ui.hex("#262D40", 0.98), 28)
 	ui.blocker(panel)
 	ui.pop(panel)
@@ -65,12 +66,18 @@ function M.build(app, root, res)
 		ui.text(panel, i18n.f("spent_of", i18n.money(res.cost), i18n.money(res.budget)), 0, top - 376, 26, ui.WHITE)
 		local line
 		if res.new_record and not res.first_clear then
-			line = ui.text(panel, i18n.t("new_record"), 0, top - 414, 28, ui.GREEN)
+			line = ui.text(panel, i18n.t("new_record"), 0, top - 410, 28, ui.GREEN)
 			ui.pulse(line, 1.08, 0.5)
 		elseif res.best_cost then
-			ui.text(panel, i18n.f("best_cost", i18n.money(res.best_cost)), 0, top - 414, 24, ui.DIM)
+			ui.text(panel, i18n.f("best_cost", i18n.money(res.best_cost)), 0, top - 410, 24, ui.DIM)
 		end
-		ui.label(panel, res.stars < 3 and i18n.t("try_heavier") or i18n.t("all_stars"), 0, top - 452, 22, res.stars < 3 and ui.YELLOW or ui.GREEN, pw - 60)
+		ui.label(panel, res.stars < 3 and i18n.t("try_heavier") or i18n.t("all_stars"), 0, top - 446, 22, res.stars < 3 and ui.YELLOW or ui.GREEN, pw - 60)
+		-- leftover budget becomes garage money
+		if (res.salary or 0) > 0 then
+			ui.text(panel, i18n.t("salary"), -bw / 2, top - 480, 24, ui.DIM, gui.PIVOT_W)
+			ui.text(panel, i18n.f("salary_gain", i18n.money(res.salary)), bw / 2, top - 480, 26, ui.GREEN, gui.PIVOT_E)
+		end
+		ui.text(panel, i18n.f("salary_line", "$" .. i18n.money(res.wallet or 0)), 0, top - 514, 22, ui.DIM)
 
 		-- buttons
 		local by = -ph / 2 + 58
@@ -86,16 +93,27 @@ function M.build(app, root, res)
 		ui.text(panel, i18n.t("fail_title"), 0, top - 60, 60, ui.RED)
 		ui.label(panel, i18n.t("reason_" .. tostring(res.reason)), 0, top - 140, 34, ui.WHITE, pw - 60)
 		local def = vehicles.get(res.vehicle)
-		ui.icon(panel, def.icon, 0, top - 210, 70, ui.DIM)
-		local by = -ph / 2 + 60
-		local bw = (pw - 50) / 2
-		local fix = ui.btn(panel, -bw / 2 - 8, by, bw, 88, i18n.t("fix"), function() session.stop_drive() end,
-			{ icon = "wrench", icon_size = 42, color = ui.GREEN, size = 32 })
-		ui.pulse(fix, 1.04, 0.6)
-		ui.btn(panel, bw / 2 + 8, by, bw, 88, i18n.t("retry"), function()
-			session.stop_drive()
-			session.start_drive(res.vehicle)
-		end, { icon = "retry", icon_size = 42, size = 32 })
+		ui.icon(panel, def.icon, 0, top - 206, 66, ui.DIM)
+		local by = -ph / 2 + (res.can_assist and 168 or 64)
+		local bw = math.min(380, pw - 80)
+		local retry = ui.btn(panel, 0, by, bw, 88, i18n.t("retry"), function() session.stop_drive() end,
+			{ icon = "retry", icon_size = 42, color = ui.GREEN, size = 32 })
+		ui.pulse(retry, 1.05, 0.6)
+		if res.can_assist then
+			-- Dynamic assist: after 3 defeats a rewarded offer adds +25% budget.
+			ads.offer_visible("budget")
+			local assist = ui.btn(panel, 0, -ph / 2 + 62, pw - 50, 88, i18n.t("assist_budget"), function()
+				ads.rewarded("budget", function(ok)
+					if ok and session.apply_budget_bonus() then
+						app.toast_next = { text = i18n.t("budget_bonus"), color = ui.GREEN }
+						session.stop_drive()
+					elseif not ok then
+						app.toast(i18n.t("reward_failed"), ui.RED)
+					end
+				end)
+			end, { icon = "video", icon_size = 42, color = ui.PURPLE, size = 30 })
+			ui.pulse(assist, 1.03, 0.7)
+		end
 	end
 end
 

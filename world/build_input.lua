@@ -21,8 +21,9 @@ local WHEEL_UP = hash("wheel_up")
 local WHEEL_DOWN = hash("wheel_down")
 local MOUSE_RIGHT = hash("mouse_right")
 
--- virtual GUI px -> screen px (set by the GUI script on resize)
+-- virtual GUI px -> screen px and touch-first flag (set by the GUI script on resize / init)
 M.px_scale = 1
+M.touch = false
 
 local st = { mode = "idle" }
 local pinch = nil
@@ -33,7 +34,8 @@ local function dist(ax, ay, bx, by)
 end
 
 local function tol_world()
-	return tuning.TOUCH_TOLERANCE_PX * M.px_scale * camera.world_per_px()
+	local px = M.touch and tuning.TOUCH_TOLERANCE_TOUCH_PX or tuning.TOUCH_TOLERANCE_PX
+	return px * M.px_scale * camera.world_per_px()
 end
 
 local function find_node(x, y, tol)
@@ -45,13 +47,25 @@ local function to_world(sx, sy)
 	return camera.screen_to_world(sx, sy, tuning.BUILD_PLANE_Z)
 end
 
-local function target_from(from, sx, sy)
-	local wx, wy = to_world(sx, sy)
+-- Touch lens: while dragging a beam the target floats above the finger so the hand never
+-- hides the joint it is aiming at. Taps (choosing a joint / a target) still use the raw point.
+local function to_world_drag(sx, sy)
+	local off = M.touch and tuning.TOUCH_OFFSET_PX * M.px_scale or 0
+	return to_world(sx, sy + off)
+end
+
+local function target_from(from, sx, sy, drag)
+	local wx, wy
+	if drag then
+		wx, wy = to_world_drag(sx, sy)
+	else
+		wx, wy = to_world(sx, sy)
+	end
 	return snap.beam_target(from.x, from.y, wx, wy, Blueprint.max_len(session.material), find_node, tol_world())
 end
 
-local function show_preview(from, sx, sy)
-	local x, y = target_from(from, sx, sy)
+local function show_preview(from, sx, sy, drag)
+	local x, y = target_from(from, sx, sy, drag)
 	if x then
 		session.set_preview(from.x, from.y, x, y)
 	else
@@ -119,7 +133,7 @@ local function move(sx, sy)
 	end
 	if st.mode == "drag_beam" then
 		local from = session.blueprint.nodes[st.node]
-		if from then show_preview(from, sx, sy) end
+		if from then show_preview(from, sx, sy, true) end
 	elseif st.mode == "pan" then
 		camera.pan_px(sx - st.lx, sy - st.ly)
 	end

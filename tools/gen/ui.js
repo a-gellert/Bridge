@@ -147,6 +147,56 @@ const IMAGES = {
       c.erase(SDF.circle(x, 74, 4));
     }
   }),
+  // garage: a car under a roller door
+  garage: () => icon((c) => {
+    c.draw(SDF.rect(48, 24, 42, 6, 3), W);
+    c.draw(SDF.poly([[10, 42], [10, 22], [86, 22], [86, 42]]), W);
+    for (const y of [28, 34, 40]) c.erase(SDF.rect(48, y, 68, 2));
+    c.draw(SDF.rect(48, 58, 32, 10, 5), W);
+    c.draw(SDF.poly([[24, 68], [32, 56], [62, 56], [72, 68]]), W);
+    c.erase(SDF.poly([[34, 65], [38, 59], [46, 59], [46, 65]]));
+    c.erase(SDF.poly([[50, 65], [50, 59], [58, 59], [62, 65]]));
+    c.draw(SDF.circle(32, 78, 8), W);
+    c.draw(SDF.circle(64, 78, 8), W);
+    c.erase(SDF.circle(32, 78, 3));
+    c.erase(SDF.circle(64, 78, 3));
+  }),
+  trophy: () => icon((c) => {
+    c.draw(SDF.rect(48, 20, 26, 8, 3), W);
+    c.draw(SDF.rect(48, 28, 10, 8), W);
+    c.draw(SDF.sub(SDF.poly([[26, 34], [70, 34], [64, 60], [54, 68], [42, 68], [32, 60]]),
+      SDF.rect(48, 48, 18, 6)), W);
+    c.draw(SDF.sub(SDF.ring(22, 40, 14, 6), SDF.rect(32, 40, 14, 26)), W);
+    c.draw(SDF.sub(SDF.ring(74, 40, 14, 6), SDF.rect(64, 40, 14, 26)), W);
+  }),
+  // vibration: a phone with motion waves
+  vibrate_on: () => icon((c) => {
+    c.draw(SDF.rect(48, 48, 26, 44, 6), W);
+    c.erase(SDF.rect(48, 56, 18, 22, 3));
+    c.erase(SDF.circle(48, 22, 4));
+    c.draw(SDF.sub(SDF.ring(24, 48, 20, 7), SDF.rect(32, 48, 20, 48)), W);
+    c.draw(SDF.sub(SDF.ring(72, 48, 20, 7), SDF.rect(64, 48, 20, 48)), W);
+  }),
+  vibrate_off: () => icon((c) => {
+    c.draw(SDF.rect(48, 48, 26, 44, 6), W);
+    c.erase(SDF.rect(48, 56, 18, 22, 3));
+    c.erase(SDF.circle(48, 22, 4));
+    c.erase(SDF.line(16, 18, 80, 82, 10));
+  }),
+  // rewarded video: a screen with a play button
+  video: () => icon((c) => {
+    c.draw(SDF.rect(48, 48, 38, 28, 7), W);
+    c.erase(SDF.rect(48, 48, 31, 21, 4));
+    c.draw(SDF.poly([[40, 36], [62, 48], [40, 60]]), W);
+  }),
+  // ghost finger / tutorial hand
+  hand: () => icon((c) => {
+    c.draw(SDF.rect(44, 22, 30, 30, 10), W);       // palm
+    c.draw(SDF.rect(44, 58, 12, 34, 6), W);        // index finger
+    c.draw(SDF.rect(62, 44, 9, 24, 4.5), W);
+    c.draw(SDF.rect(30, 40, 8, 20, 4), W);
+    c.erase(SDF.rect(44, 40, 8, 2));                // knuckle line
+  }),
 };
 
 // Material icons: a beam piece in the material's colors (not tinted).
@@ -194,12 +244,27 @@ const MAT_ICONS = {
   },
 };
 
+const fs = require("fs");
+
+const NANO_ICONS = new Set([
+  "mat_road", "mat_steel_road", "mat_wood", "mat_steel",
+  "mat_cable", "mat_rope", "mat_boost", "mat_bounce",
+  "veh_moto", "veh_car", "veh_truck",
+  "wrench", "eraser", "pedal_gas", "pedal_brake",
+  "trophy", "garage", "coin", "hint"
+]);
+
 function generate(root) {
   const out = [];
   const dir = path.join(root, "assets/images/ui");
   for (const [name, fn] of Object.entries({ ...IMAGES, ...MAT_ICONS })) {
+    const targetFile = path.join(dir, name + ".png");
+    if (NANO_ICONS.has(name) && fs.existsSync(targetFile)) {
+      out.push({ name, w: name.startsWith("mat_") ? 96 : 96, h: name.startsWith("mat_") ? 64 : 96 });
+      continue;
+    }
     const c = fn();
-    c.save(path.join(dir, name + ".png"));
+    c.save(targetFile);
     out.push({ name, w: c.w, h: c.h });
   }
   return out;

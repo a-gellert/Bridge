@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bridge Mad — Level Editor</title>
+  <style>
+    :root {
+      --bg: #141722;
+      --panel: #1e2230;
+      --panel-lt: #2b3145;
+      --border: #3b4259;
+      --text: #e6ebf5;
+      --dim: #8c97b2;
+      --accent: #ff8c32;
+      --green: #48bb78;
+      --red: #f56565;
+      --blue: #4299e1;
+      --cyan: #38b2ac;
+      --gold: #ecc94b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      height: 52px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 14px;
+      z-index: 10;
+    }
+    .logo {
+      font-weight: 800;
+      font-size: 17px;
+      letter-spacing: 1px;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .biome-btn {
+      background: var(--panel-lt);
+      border: 1px solid var(--border);
+      color: var(--dim);
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.15s;
+    }
+    .biome-btn:hover { color: var(--text); background: #373e57; }
+    .biome-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .level-select {
+      background: var(--panel-lt);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      outline: none;
+      cursor: pointer;
+    }
+    .btn {
+      background: var(--panel-lt);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s;
+    }
+    .btn:hover { background: #3a425c; }
+    .btn-primary { background: #2b6cb0; border-color: #3182ce; color: #fff; }
+    .btn-primary:hover { background: #3182ce; }
+    .btn-success { background: #276749; border-color: #38a169; color: #fff; }
+    .btn-success:hover { background: #38a169; }
+    .btn-danger { background: #9b2c2c; border-color: #e53e3e; color: #fff; }
+    .btn-danger:hover { background: #e53e3e; }
+
+    main {
+      display: flex;
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+    #sidebar {
+      width: 320px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 16px;
+      gap: 16px;
+      font-size: 13px;
+    }
+    .prop-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .prop-group label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .prop-input {
+      background: var(--panel-lt);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      outline: none;
+    }
+    .prop-input:focus { border-color: var(--accent); }
+    .prop-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .mat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .mat-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .mat-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+
+    #viewport-container {
+      flex: 1;
+      position: relative;
+      background: #11141d;
+      overflow: hidden;
+    }
+    #canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+    }
+
+    #toolbar {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(30, 34, 48, 0.95);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      display: flex;
+      padding: 4px;
+      gap: 4px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      z-index: 5;
+    }
+    .tool-btn {
+      background: transparent;
+      border: none;
+      color: var(--dim);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s;
+    }
+    .tool-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+    .tool-btn.active {
+      background: var(--panel-lt);
+      color: var(--accent);
+      box-shadow: inset 0 0 0 1px var(--accent);
+    }
+
+    #statusbar {
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      height: 32px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      font-size: 12px;
+      color: var(--dim);
+      gap: 20px;
+    }
+    .status-badge {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 11px;
+    }
+    .status-ok { background: rgba(72,187,120,0.2); color: #48bb78; }
+    .status-warn { background: rgba(236,201,75,0.2); color: #ecc94b; }
+    .status-fail { background: rgba(245,101,101,0.2); color: #f56565; }
+
+    #cost-meter {
+      height: 6px;
+      background: #11141d;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    #cost-bar {
+      height: 100%;
+      background: var(--green);
+      width: 0%;
+      transition: width 0.2s;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🌉 BRIDGE MAD <span style="font-size: 11px; color: var(--dim); font-weight: 500;">EDITOR</span></div>
+
+  <div style="display: flex; gap: 6px; margin-left: 10px;">
+    <button class="biome-btn active" data-chapter="1">🌿 Valley</button>
+    <button class="biome-btn" data-chapter="2">🏜️ Canyon</button>
+    <button class="biome-btn" data-chapter="3">⚛️ Lab</button>
+    <button class="biome-btn" data-chapter="4">❄️ Mountains</button>
+  </div>
+
+  <select id="level-select" class="level-select" style="min-width: 220px;"></select>
+
+  <button id="btn-new-level" class="btn">+ New Level</button>
+  <button id="btn-save" class="btn btn-primary">💾 Save Level (Ctrl+S)</button>
+  <button id="btn-test" class="btn btn-success">▶️ Test Bridge</button>
+  <button id="btn-delete" class="btn btn-danger" style="margin-left: auto;">🗑️</button>
+</header>
+
+<main>
+  <div id="sidebar">
+    <div class="prop-group">
+      <label>Level ID & Name</label>
+      <input id="prop-id" class="prop-input" type="text" placeholder="e.g. 1-1" readonly>
+      <div class="prop-row" style="margin-top: 4px;">
+        <input id="prop-name-en" class="prop-input" type="text" placeholder="Name (EN)">
+        <input id="prop-name-ru" class="prop-input" type="text" placeholder="Имя (RU)">
+      </div>
+    </div>
+
+    <div class="prop-group">
+      <div style="display: flex; justify-content: space-between; align-items: baseline;">
+        <label>Budget & Solution Cost</label>
+        <span id="cost-label" style="font-size: 11px; color: var(--dim);">$0 / $0</span>
+      </div>
+      <input id="prop-budget" class="prop-input" type="number" step="50" min="100">
+      <div id="cost-meter"><div id="cost-bar"></div></div>
+    </div>
+
+    <div class="prop-group">
+      <label>Allowed Materials</label>
+      <div class="mat-grid">
+        <label class="mat-checkbox"><input type="checkbox" value="road" checked><span class="mat-swatch" style="background:#5b6477;"></span> Road</label>
+        <label class="mat-checkbox"><input type="checkbox" value="wood" checked><span class="mat-swatch" style="background:#b7791f;"></span> Wood</label>
+        <label class="mat-checkbox"><input type="checkbox" value="steel"><span class="mat-swatch" style="background:#4299e1;"></span> Steel</label>
+        <label class="mat-checkbox"><input type="checkbox" value="cable"><span class="mat-swatch" style="background:#ed8936;"></span> Cable</label>
+        <label class="mat-checkbox"><input type="checkbox" value="rope"><span class="mat-swatch" style="background:#ecc94b;"></span> Rope</label>
+        <label class="mat-checkbox"><input type="checkbox" value="steel_road"><span class="mat-swatch" style="background:#2c5282;"></span> Steel Road</label>
+        <label class="mat-checkbox"><input type="checkbox" value="boost"><span class="mat-swatch" style="background:#9f7aea;"></span> Boost</label>
+        <label class="mat-checkbox"><input type="checkbox" value="bounce"><span class="mat-swatch" style="background:#48bb78;"></span> Bounce</label>
+      </div>
+    </div>
+
+    <div class="prop-group">
+      <label>Start & Finish Flags</label>
+      <div class="prop-row">
+        <div><span style="font-size: 11px; color: var(--dim);">Start X:</span> <input id="prop-start" class="prop-input" type="number" step="0.5"></div>
+        <div><span style="font-size: 11px; color: var(--dim);">Finish X:</span> <input id="prop-finish" class="prop-input" type="number" step="0.5"></div>
+      </div>
+    </div>
+
+    <div class="prop-group">
+      <label>Water / Acid Surface</label>
+      <div class="prop-row">
+        <label class="mat-checkbox"><input id="prop-water-enable" type="checkbox" checked> Active</label>
+        <input id="prop-water-y" class="prop-input" type="number" step="0.5" value="-4">
+      </div>
+    </div>
+
+    <div class="prop-group">
+      <label>Build Area (Xmin, Ymin, Xmax, Ymax)</label>
+      <div class="prop-row">
+        <input id="prop-area-x0" class="prop-input" type="number" step="1" placeholder="X0">
+        <input id="prop-area-y0" class="prop-input" type="number" step="1" placeholder="Y0">
+      </div>
+      <div class="prop-row" style="margin-top: 4px;">
+        <input id="prop-area-x1" class="prop-input" type="number" step="1" placeholder="X1">
+        <input id="prop-area-y1" class="prop-input" type="number" step="1" placeholder="Y1">
+      </div>
+    </div>
+
+    <div class="prop-group">
+      <label>Tutorial Tip Key</label>
+      <input id="prop-tip" class="prop-input" type="text" placeholder="e.g. tip_first">
+    </div>
+  </div>
+
+  <div id="viewport-container">
+    <div id="toolbar">
+      <button class="tool-btn active" data-tool="select">🔍 Select (V)</button>
+      <button class="tool-btn" data-tool="anchor">🔩 Anchor (A)</button>
+      <button class="tool-btn" data-tool="ground">⛰️ Ground (G)</button>
+      <button class="tool-btn" data-tool="block">🧱 Block (B)</button>
+      <button class="tool-btn" data-tool="portal">🌀 Portal (P)</button>
+      <button class="tool-btn" data-tool="spikes">⚠️ Spikes (S)</button>
+      <div style="width:1px; background:var(--border); margin:0 4px;"></div>
+      <button class="tool-btn" data-tool="beam" data-mat="road">🛣️ Road (1)</button>
+      <button class="tool-btn" data-tool="beam" data-mat="wood">🪵 Wood (2)</button>
+      <button class="tool-btn" data-tool="beam" data-mat="steel">🔩 Steel (3)</button>
+      <button class="tool-btn" data-tool="beam" data-mat="cable">〰️ Cable (4)</button>
+      <button class="tool-btn" data-tool="erase">❌ Erase (X)</button>
+    </div>
+
+    <canvas id="canvas"></canvas>
+  </div>
+</main>
+
+<div id="statusbar">
+  <span id="mouse-coords">X: 0.00, Y: 0.00</span>
+  <span>Snap: <strong id="snap-label">1.0 m</strong></span>
+  <span id="test-status" class="status-badge status-ok">Ready</span>
+  <span style="margin-left: auto; color: var(--dim);">Pan: Right Drag | Zoom: Wheel | Snap toggle: Shift</span>
+</div>
+
+<script>
+// Client-side Editor Logic
+let chapters = [];
+let currentChapterIndex = 1;
+let currentLevel = null;
+
+// Camera
+let panX = 400, panY = 360, zoom = 28; // pixels per meter
+let isPanning = false, panStartX = 0, panStartY = 0;
+let currentTool = "select";
+let currentMat = "road";
+let snapGrid = 1.0;
+
+// Dragging / Drawing state
+let dragItem = null;
+let drawStart = null;
+let hoverCoord = { x: 0, y: 0 };
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+  canvas.width = canvas.parentElement.clientWidth;
+  canvas.height = canvas.parentElement.clientHeight;
+  render();
+}
+window.addEventListener("resize", resize);
+
+// Coordinate transforms
+function worldToScreen(wx, wy) {
+  return {
+    x: panX + wx * zoom,
+    y: panY - wy * zoom
+  };
+}
+function screenToWorld(sx, sy) {
+  return {
+    x: (sx - panX) / zoom,
+    y: (panY - sy) / zoom
+  };
+}
+function snap(val, step = snapGrid) {
+  return Math.round(val / step) * step;
+}
+
+// -------------------------------------------------------------
+// Rendering
+// -------------------------------------------------------------
+const THEME_COLORS = {
+  valley: { sky: "#cce8ff", ground: "#5a8c42", cap: "#78b84d", water: "#38b2ac" },
+  canyon: { sky: "#f7d0b5", ground: "#b4572e", cap: "#e5965a", water: "#3d8fd6" },
+  lab: { sky: "#dce6f1", ground: "#a3adbc", cap: "#eef3f9", water: "#55e0a8" },
+  mountains: { sky: "#c9c0ff", ground: "#8783a9", cap: "#f4f8ff", water: "#5aa0ff" }
+};
+
+const MAT_COLORS = {
+  road: "#4a5568",
+  wood: "#b7791f",
+  steel: "#4299e1",
+  cable: "#ed8936",
+  rope: "#ecc94b",
+  steel_road: "#2c5282",
+  boost: "#9f7aea",
+  bounce: "#48bb78"
+};
+
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!currentLevel) return;
+
+  const currentCh = chapters.find(c => c.chapterIndex === currentChapterIndex) || { theme: "valley" };
+  const theme = THEME_COLORS[currentCh.theme] || THEME_COLORS.valley;
+
+  // Background Sky
+  const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  grad.addColorStop(0, "#10131d");
+  grad.addColorStop(1, theme.sky);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Grid
+  drawGrid();
+
+  // Water / Acid
+  if (currentLevel.water !== undefined) {
+    const sp = worldToScreen(0, currentLevel.water);
+    ctx.fillStyle = theme.water + "99";
+    ctx.fillRect(0, sp.y, canvas.width, canvas.height - sp.y);
+    ctx.strokeStyle = "#ffffffaa";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, sp.y);
+    ctx.lineTo(canvas.width, sp.y);
+    ctx.stroke();
+  }
+
+  // Build Area Boundary
+  if (currentLevel.area) {
+    const [ax0, ay0, ax1, ay1] = currentLevel.area;
+    const p0 = worldToScreen(ax0, ay1);
+    const p1 = worldToScreen(ax1, ay0);
+    ctx.strokeStyle = "#ecc94b88";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 6]);
+    ctx.strokeRect(p0.x, p0.y, p1.x - p0.x, p1.y - p0.y);
+    ctx.setLineDash([]);
+  }
+
+  // Ground Columns
+  for (const g of (currentLevel.ground || [])) {
+    const [gx0, gx1, gy, gbot = -30] = g;
+    const p0 = worldToScreen(gx0, gy);
+    const p1 = worldToScreen(gx1, gbot);
+    ctx.fillStyle = theme.ground;
+    ctx.fillRect(p0.x, p0.y, p1.x - p0.x, p1.y - p0.y);
+    // Grass / stone cap
+    ctx.fillStyle = theme.cap;
+    ctx.fillRect(p0.x, p0.y, p1.x - p0.x, 6);
+  }
+
+  // Obstacle Blocks
+  for (const b of (currentLevel.blocks || [])) {
+    const [bx0, by0, bx1, by1] = b;
+    const p0 = worldToScreen(bx0, by1);
+    const p1 = worldToScreen(bx1, by0);
+    ctx.fillStyle = "#3b4259";
+    ctx.fillRect(p0.x, p0.y, p1.x - p0.x, p1.y - p0.y);
+    ctx.strokeStyle = "#1a1e2b";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(p0.x, p0.y, p1.x - p0.x, p1.y - p0.y);
+  }
+
+  // Spikes
+  for (const s of (currentLevel.spikes || [])) {
+    const [sx0, sy0, sx1, sy1] = s;
+    const p0 = worldToScreen(sx0, sy1);
+    const p1 = worldToScreen(sx1, sy0);
+    ctx.fillStyle = "#e53e3e";
+    ctx.fillRect(p0.x, p0.y, p1.x - p0.x, p1.y - p0.y);
+  }
+
+  // Solution Beams
+  for (const b of (currentLevel.solution || [])) {
+    const [mat, bx0, by0, bx1, by1] = b;
+    const p0 = worldToScreen(bx0, by0);
+    const p1 = worldToScreen(bx1, by1);
+    ctx.strokeStyle = MAT_COLORS[mat] || "#fff";
+    ctx.lineWidth = (mat === "road" || mat === "steel_road") ? 8 : (mat === "cable" || mat === "rope") ? 2.5 : 5;
+    ctx.beginPath();
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(p1.x, p1.y);
+    ctx.stroke();
+
+    // Joint dots
+    ctx.fillStyle = "#ecc94b";
+    ctx.beginPath();
+    ctx.arc(p0.x, p0.y, 4, 0, Math.PI * 2);
+    ctx.arc(p1.x, p1.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Portals & Dotted Conduits
+  for (const p of (currentLevel.portals || [])) {
+    const [p1, p2] = p;
+    const sp1 = worldToScreen(p1.x, p1.y);
+    const sp2 = worldToScreen(p2.x, p2.y);
+
+    // Indicator dotted line
+    ctx.strokeStyle = "#4299e1aa";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath();
+    ctx.moveTo(sp1.x, sp1.y);
+    ctx.lineTo(sp1.x, Math.min(sp1.y, sp2.y) - 40);
+    ctx.lineTo(sp2.x, Math.min(sp1.y, sp2.y) - 40);
+    ctx.lineTo(sp2.x, sp2.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Entrance Blue Portal
+    drawPortalGlyph(sp1.x, sp1.y, p1.angle, "#3182ce");
+    // Exit Orange Portal
+    drawPortalGlyph(sp2.x, sp2.y, p2.angle, "#dd6b20");
+  }
+
+  // Anchors
+  for (const a of (currentLevel.anchors || [])) {
+    const sp = worldToScreen(a[0], a[1]);
+    ctx.fillStyle = "#ecc94b";
+    ctx.strokeStyle = "#744210";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(sp.x, sp.y, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#e53e3e";
+    ctx.beginPath();
+    ctx.arc(sp.x, sp.y, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Start & Finish Flags
+  if (currentLevel.start !== undefined) {
+    const sp = worldToScreen(currentLevel.start, 0);
+    ctx.fillStyle = "#48bb78";
+    ctx.fillRect(sp.x - 3, sp.y - 30, 6, 30);
+    ctx.beginPath();
+    ctx.moveTo(sp.x + 3, sp.y - 30);
+    ctx.lineTo(sp.x + 18, sp.y - 20);
+    ctx.lineTo(sp.x + 3, sp.y - 10);
+    ctx.fill();
+  }
+  if (currentLevel.finish !== undefined) {
+    const sp = worldToScreen(currentLevel.finish, 0);
+    ctx.fillStyle = "#f56565";
+    ctx.fillRect(sp.x - 3, sp.y - 30, 6, 30);
+    ctx.beginPath();
+    ctx.moveTo(sp.x + 3, sp.y - 30);
+    ctx.lineTo(sp.x + 18, sp.y - 20);
+    ctx.lineTo(sp.x + 3, sp.y - 10);
+    ctx.fill();
+  }
+
+  // Active Drawing Tool Preview
+  if (drawStart) {
+    const p0 = worldToScreen(drawStart.x, drawStart.y);
+    const p1 = worldToScreen(hoverCoord.x, hoverCoord.y);
+    ctx.strokeStyle = "#ecc94b";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(p1.x, p1.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+function drawGrid() {
+  const p0 = screenToWorld(0, canvas.height);
+  const p1 = screenToWorld(canvas.width, 0);
+
+  ctx.lineWidth = 0.5;
+  ctx.strokeStyle = "rgba(255,255,255,0.06)";
+
+  const xStart = Math.floor(p0.x);
+  const xEnd = Math.ceil(p1.x);
+  for (let x = xStart; x <= xEnd; x++) {
+    const sp = worldToScreen(x, 0);
+    ctx.beginPath();
+    ctx.moveTo(sp.x, 0);
+    ctx.lineTo(sp.x, canvas.height);
+    ctx.stroke();
+  }
+
+  const yStart = Math.floor(p0.y);
+  const yEnd = Math.ceil(p1.y);
+  for (let y = yStart; y <= yEnd; y++) {
+    const sp = worldToScreen(0, y);
+    ctx.beginPath();
+    ctx.moveTo(0, sp.y);
+    ctx.lineTo(canvas.width, sp.y);
+    ctx.stroke();
+  }
+
+  // Axes
+  const o = worldToScreen(0, 0);
+  ctx.strokeStyle = "rgba(255,255,255,0.25)";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(0, o.y); ctx.lineTo(canvas.width, o.y);
+  ctx.moveTo(o.x, 0); ctx.lineTo(o.x, canvas.height);
+  ctx.stroke();
+}
+
+function drawPortalGlyph(x, y, angle, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(-angle);
+  ctx.fillStyle = color;
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 8, 20, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // Travel direction arrow
+  ctx.fillStyle = "#fff";
+  ctx.beginPath();
+  ctx.moveTo(6, 0);
+  ctx.lineTo(0, -5);
+  ctx.lineTo(0, 5);
+  ctx.fill();
+  ctx.restore();
+}
+
+// -------------------------------------------------------------
+// UI Events & Server Sync
+// -------------------------------------------------------------
+async function fetchChapters() {
+  try {
+    const res = await fetch("/api/chapters");
+    chapters = await res.json();
+    populateLevelList();
+  } catch (e) {
+    console.error("Failed to load chapters", e);
+  }
+}
+
+function populateLevelList() {
+  const sel = document.getElementById("level-select");
+  sel.innerHTML = "";
+  const ch = chapters.find(c => c.chapterIndex === currentChapterIndex);
+  if (!ch || !ch.levels) return;
+
+  ch.levels.forEach((lvl, idx) => {
+    const opt = document.createElement("option");
+    opt.value = idx;
+    opt.textContent = `${lvl.id}: ${lvl.name?.ru || lvl.name?.en || lvl.id} ($${lvl.budget})`;
+    sel.appendChild(opt);
+  });
+
+  loadLevel(ch.levels[0]);
+}
+
+function loadLevel(lvl) {
+  currentLevel = JSON.parse(JSON.stringify(lvl));
+  syncPropertiesToForm();
+  // Center camera around bridge area
+  const xMid = currentLevel.area ? (currentLevel.area[0] + currentLevel.area[2]) * 0.5 : 10;
+  panX = canvas.width / 2 - xMid * zoom;
+  panY = canvas.height / 2 + 3 * zoom;
+  render();
+}
+
+function syncPropertiesToForm() {
+  if (!currentLevel) return;
+  document.getElementById("prop-id").value = currentLevel.id;
+  document.getElementById("prop-name-en").value = currentLevel.name?.en || "";
+  document.getElementById("prop-name-ru").value = currentLevel.name?.ru || "";
+  document.getElementById("prop-budget").value = currentLevel.budget || 2000;
+  document.getElementById("prop-start").value = currentLevel.start ?? -6;
+  document.getElementById("prop-finish").value = currentLevel.finish ?? 20;
+
+  const hasWater = (currentLevel.water !== undefined);
+  document.getElementById("prop-water-enable").checked = hasWater;
+  document.getElementById("prop-water-y").value = hasWater ? currentLevel.water : -4;
+
+  if (currentLevel.area) {
+    document.getElementById("prop-area-x0").value = currentLevel.area[0];
+    document.getElementById("prop-area-y0").value = currentLevel.area[1];
+    document.getElementById("prop-area-x1").value = currentLevel.area[2];
+    document.getElementById("prop-area-y1").value = currentLevel.area[3];
+  }
+  document.getElementById("prop-tip").value = currentLevel.tip || "";
+
+  // Materials
+  const mats = new Set(currentLevel.materials || []);
+  document.querySelectorAll(".mat-checkbox input").forEach(cb => {
+    cb.checked = mats.has(cb.value);
+  });
+
+  updateCost();
+}
+
+function updateCost() {
+  const cost = (currentLevel.solution || []).reduce((acc, b) => {
+    const len = Math.hypot(b[3] - b[1], b[4] - b[2]);
+    const rate = b[0].includes("road") ? 90 : (b[0] === "steel") ? 140 : 40;
+    return acc + Math.round(len * rate);
+  }, 0);
+  const budget = currentLevel.budget || 2000;
+  document.getElementById("cost-label").textContent = `$${cost.toLocaleString()} / $${budget.toLocaleString()}`;
+  const pct = Math.min(100, (cost / budget) * 100);
+  const bar = document.getElementById("cost-bar");
+  bar.style.width = pct + "%";
+  bar.style.background = pct > 100 ? "var(--red)" : (pct > 85 ? "var(--gold)" : "var(--green)");
+}
+
+// Save level to backend
+async function saveLevel() {
+  if (!currentLevel) return;
+  // Sync properties from sidebar
+  currentLevel.name = {
+    en: document.getElementById("prop-name-en").value,
+    ru: document.getElementById("prop-name-ru").value
+  };
+  currentLevel.budget = Number(document.getElementById("prop-budget").value);
+  currentLevel.start = Number(document.getElementById("prop-start").value);
+  currentLevel.finish = Number(document.getElementById("prop-finish").value);
+
+  if (document.getElementById("prop-water-enable").checked) {
+    currentLevel.water = Number(document.getElementById("prop-water-y").value);
+  } else {
+    delete currentLevel.water;
+  }
+
+  currentLevel.area = [
+    Number(document.getElementById("prop-area-x0").value),
+    Number(document.getElementById("prop-area-y0").value),
+    Number(document.getElementById("prop-area-x1").value),
+    Number(document.getElementById("prop-area-y1").value)
+  ];
+  currentLevel.tip = document.getElementById("prop-tip").value || undefined;
+
+  const mats = [];
+  document.querySelectorAll(".mat-checkbox input:checked").forEach(cb => mats.push(cb.value));
+  currentLevel.materials = mats;
+
+  try {
+    const res = await fetch("/api/save-level", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chapterIndex: currentChapterIndex,
+        level: currentLevel
+      })
+    });
+    const d = await res.json();
+    if (d.ok) {
+      alert("Saved successfully to chapter file!");
+    } else {
+      alert("Error saving: " + d.error);
+    }
+  } catch (e) {
+    alert("Save request failed: " + e.message);
+  }
+}
+
+// Test bridge via physics
+async function testLevel() {
+  const badge = document.getElementById("test-status");
+  badge.className = "status-badge status-warn";
+  badge.textContent = "Simulating...";
+
+  try {
+    const res = await fetch("/api/test-level", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ level: currentLevel })
+    });
+    const d = await res.json();
+    if (d.ok) {
+      badge.className = "status-badge status-ok";
+      badge.textContent = `PASS — Truck Won ($${d.cost} / $${d.budget})`;
+    } else {
+      badge.className = "status-badge status-fail";
+      badge.textContent = `FAIL — ${d.truckResult || d.error || "Broken"}`;
+    }
+  } catch (e) {
+    badge.className = "status-badge status-fail";
+    badge.textContent = "Test error: " + e.message;
+  }
+}
+
+// Canvas interactions
+canvas.addEventListener("mousedown", e => {
+  if (e.button === 2 || e.button === 1) { // Pan
+    isPanning = true;
+    panStartX = e.clientX - panX;
+    panStartY = e.clientY - panY;
+    return;
+  }
+  const w = screenToWorld(e.clientX - canvas.getBoundingClientRect().left, e.clientY - canvas.getBoundingClientRect().top);
+  const sw = { x: snap(w.x), y: snap(w.y) };
+
+  if (currentTool === "anchor") {
+    currentLevel.anchors = currentLevel.anchors || [];
+    currentLevel.anchors.push([sw.x, sw.y]);
+    render();
+  } else if (currentTool === "beam" || currentTool === "ground" || currentTool === "block") {
+    drawStart = sw;
+  }
+});
+
+canvas.addEventListener("mousemove", e => {
+  if (isPanning) {
+    panX = e.clientX - panStartX;
+    panY = e.clientY - panStartY;
+    render();
+    return;
+  }
+  const rect = canvas.getBoundingClientRect();
+  const w = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  hoverCoord = { x: snap(w.x), y: snap(w.y) };
+  document.getElementById("mouse-coords").textContent = `X: ${hoverCoord.x.toFixed(2)}, Y: ${hoverCoord.y.toFixed(2)}`;
+  if (drawStart) render();
+});
+
+window.addEventListener("mouseup", e => {
+  if (isPanning) { isPanning = false; return; }
+  if (drawStart) {
+    if (Math.hypot(hoverCoord.x - drawStart.x, hoverCoord.y - drawStart.y) > 0.4) {
+      if (currentTool === "beam") {
+        currentLevel.solution = currentLevel.solution || [];
+        currentLevel.solution.push([currentMat, drawStart.x, drawStart.y, hoverCoord.x, hoverCoord.y]);
+        updateCost();
+      } else if (currentTool === "ground") {
+        currentLevel.ground = currentLevel.ground || [];
+        currentLevel.ground.push([Math.min(drawStart.x, hoverCoord.x), Math.max(drawStart.x, hoverCoord.x), drawStart.y]);
+      } else if (currentTool === "block") {
+        currentLevel.blocks = currentLevel.blocks || [];
+        currentLevel.blocks.push([
+          Math.min(drawStart.x, hoverCoord.x), Math.min(drawStart.y, hoverCoord.y),
+          Math.max(drawStart.x, hoverCoord.x), Math.max(drawStart.y, hoverCoord.y)
+        ]);
+      }
+    }
+    drawStart = null;
+    render();
+  }
+});
+
+canvas.addEventListener("wheel", e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+  const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
+
+  panX = mouseX - (mouseX - panX) * zoomFactor;
+  panY = mouseY - (mouseY - panY) * zoomFactor;
+  zoom *= zoomFactor;
+  render();
+});
+
+canvas.addEventListener("contextmenu", e => e.preventDefault());
+
+// Buttons
+document.querySelectorAll(".biome-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".biome-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentChapterIndex = Number(btn.dataset.chapter);
+    populateLevelList();
+  });
+});
+
+document.getElementById("level-select").addEventListener("change", e => {
+  const ch = chapters.find(c => c.chapterIndex === currentChapterIndex);
+  loadLevel(ch.levels[e.target.value]);
+});
+
+document.querySelectorAll(".tool-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tool-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentTool = btn.dataset.tool;
+    if (btn.dataset.mat) currentMat = btn.dataset.mat;
+  });
+});
+
+document.getElementById("btn-save").addEventListener("click", saveLevel);
+document.getElementById("btn-test").addEventListener("click", testLevel);
+
+window.addEventListener("keydown", e => {
+  if (e.ctrlKey && e.key === "s") {
+    e.preventDefault();
+    saveLevel();
+  }
+});
+
+// Boot
+resize();
+fetchChapters();
+</script>
+
+</body>
+</html>

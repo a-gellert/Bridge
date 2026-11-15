@@ -101,6 +101,24 @@ images {
   image: "/assets/images/ui/veh_truck.png"
 }
 images {
+  image: "/assets/images/ui/garage.png"
+}
+images {
+  image: "/assets/images/ui/trophy.png"
+}
+images {
+  image: "/assets/images/ui/vibrate_on.png"
+}
+images {
+  image: "/assets/images/ui/vibrate_off.png"
+}
+images {
+  image: "/assets/images/ui/video.png"
+}
+images {
+  image: "/assets/images/ui/hand.png"
+}
+images {
   image: "/assets/images/ui/mat_road.png"
 }
 images {

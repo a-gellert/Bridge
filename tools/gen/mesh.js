@@ -4,6 +4,14 @@ const fs = require("fs");
 const path = require("path");
 const { uv } = require("./palette");
 
+function colorsOf(colors) {
+  return typeof colors === "string"
+    ? { top: colors, bottom: colors, side: colors, front: colors, back: colors }
+    : colors;
+}
+
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+
 class Mesh {
   constructor() {
     this.pos = [];
@@ -38,7 +46,7 @@ class Mesh {
 
   // Axis-aligned box from center + size. `colors` = one name or { top, bottom, side, front, back }.
   box(cx, cy, cz, sx, sy, sz, colors) {
-    const c = typeof colors === "string" ? { top: colors, bottom: colors, side: colors, front: colors, back: colors } : colors;
+    const c = colorsOf(colors);
     const side = c.side || c.front;
     const hx = sx / 2, hy = sy / 2, hz = sz / 2;
     const p = (x, y, z) => [cx + x * hx, cy + y * hy, cz + z * hz];
@@ -56,17 +64,102 @@ class Mesh {
     return this.box((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, x1 - x0, y1 - y0, z1 - z0, colors);
   }
 
+  // Box rotated around the z axis (spokes, tread blocks, diagonal braces).
+  boxRotZ(cx, cy, cz, sx, sy, sz, angle, colors) {
+    const c = colorsOf(colors);
+    const side = c.side || c.front;
+    const hx = sx / 2, hy = sy / 2, hz = sz / 2;
+    const ca = Math.cos(angle), sa = Math.sin(angle);
+    const p = (x, y, z) => [cx + x * hx * ca - y * hy * sa, cy + x * hx * sa + y * hy * ca, cz + z * hz];
+    this.quad(p(-1, -1, 1), p(1, -1, 1), p(1, 1, 1), p(-1, 1, 1), c.front || side);
+    this.quad(p(1, -1, -1), p(-1, -1, -1), p(-1, 1, -1), p(1, 1, -1), c.back || side);
+    this.quad(p(1, -1, 1), p(1, -1, -1), p(1, 1, -1), p(1, 1, 1), side);
+    this.quad(p(-1, -1, -1), p(-1, -1, 1), p(-1, 1, 1), p(-1, 1, -1), side);
+    this.quad(p(-1, 1, 1), p(1, 1, 1), p(1, 1, -1), p(-1, 1, -1), c.top || side);
+    this.quad(p(-1, -1, -1), p(1, -1, -1), p(1, -1, 1), p(-1, -1, 1), c.bottom || side);
+    return this;
+  }
+
+  // Voxel bevel: a core box with slightly inset top and bottom plates. Cheap and reads as a
+  // chamfered cube at any scale (Drive Mad style).
+  bevelBox(cx, cy, cz, sx, sy, sz, bevel, colors) {
+    const c = colorsOf(colors);
+    const b = clamp(bevel || 0, 0.001, Math.min(sx * 0.45, sy * 0.45, sz * 0.45));
+    const hx = sx / 2, hy = sy / 2, hz = sz / 2;
+    const side = c.side || c.front;
+    if (sy <= b * 2.02) return this.box(cx, cy, cz, sx, sy, sz, colors);
+    // body
+    this.box(cx, cy, cz, sx, sy - b * 2, sz, {
+      top: c.topSide || c.top || side,
+      bottom: c.bottomSide || c.bottom || side,
+      side,
+      front: c.front || side,
+      back: c.back || side,
+    });
+    // top plate
+    this.box(cx, cy + hy - b / 2, cz, sx - b * 2, b, sz - b * 2, {
+      top: c.top || c.layer || side,
+      bottom: c.topSide || c.layer || side,
+      side: c.topSide || c.layer || side,
+      front: c.frontTop || c.layer || side,
+      back: c.backTop || c.layer || side,
+    });
+    // bottom plate
+    this.box(cx, cy - hy + b / 2, cz, sx - b * 2, b, sz - b * 2, {
+      top: c.bottomSide || c.layer || side,
+      bottom: c.bottom || c.layer || side,
+      side: c.bottomSide || c.layer || side,
+      front: c.frontBottom || c.layer || side,
+      back: c.backBottom || c.layer || side,
+    });
+    return this;
+  }
+
+  bevelBoxMM(x0, y0, z0, x1, y1, z1, bevel, colors) {
+    return this.bevelBox((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, x1 - x0, y1 - y0, z1 - z0, bevel, colors);
+  }
+
   // Prism along z from a 2D convex polygon (CCW in xy), z from z0 to z1.
   prism(pts, z0, z1, colors) {
     const c = typeof colors === "string" ? { cap: colors, side: colors } : colors;
+    let area = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      area += a[0] * b[1] - b[0] * a[1];
+    }
+    if (area < 0) pts = pts.slice().reverse();
     const n = pts.length;
     const cx = pts.reduce((s, p) => s + p[0], 0) / n, cy = pts.reduce((s, p) => s + p[1], 0) / n;
     for (let i = 0; i < n; i++) {
       const a = pts[i], b = pts[(i + 1) % n];
-      this.tri([cx, cy, z1], [a[0], a[1], z1], [b[0], b[1], z1], c.front || c.cap);
-      this.tri([cx, cy, z0], [b[0], b[1], z0], [a[0], a[1], z0], c.back || c.cap);
-      const sideColor = typeof c.side === "function" ? c.side(a, b) : c.side;
+      this.tri([cx, cy, z1], [a[0], a[1], z1], [b[0], b[1], z1], c.front || c.cap || c.side);
+      this.tri([cx, cy, z0], [b[0], b[1], z0], [a[0], a[1], z0], c.back || c.cap || c.side);
+      const sideColor = typeof c.side === "function" ? c.side(a, b) : (c.side || c.cap || c.front);
       this.quad([a[0], a[1], z0], [b[0], b[1], z0], [b[0], b[1], z1], [a[0], a[1], z1], sideColor);
+    }
+    return this;
+  }
+
+  // Prism along y from a 2D polygon in the xz plane (ramps, chevrons, flat plates).
+  prismY(pts, y0, y1, colors) {
+    const c = typeof colors === "string" ? { cap: colors, side: colors } : colors;
+    // normalise to CCW in (x, z) so the generated faces point outward
+    let area = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      area += a[0] * b[1] - b[0] * a[1];
+    }
+    const p = area < 0 ? pts.slice().reverse() : pts;
+    const n = p.length;
+    const cx = p.reduce((s, q) => s + q[0], 0) / n;
+    const cz = p.reduce((s, q) => s + q[1], 0) / n;
+    for (let i = 0; i < n; i++) {
+      const a = p[i], b = p[(i + 1) % n];
+      // +y cap (reversed winding) and -y cap
+      this.tri([cx, y1, cz], [b[0], y1, b[1]], [a[0], y1, a[1]], c.top || c.cap || c.side);
+      this.tri([cx, y0, cz], [a[0], y0, a[1]], [b[0], y0, b[1]], c.bottom || c.cap || c.side);
+      const sideColor = typeof c.side === "function" ? c.side(a, b) : (c.side || c.cap || c.top);
+      this.quad([a[0], y0, a[1]], [a[0], y1, a[1]], [b[0], y1, b[1]], [b[0], y0, b[1]], sideColor);
     }
     return this;
   }

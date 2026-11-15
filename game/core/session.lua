@@ -10,10 +10,12 @@
 local levels = require("game.levels.levels")
 local materials = require("game.config.materials")
 local vehicles = require("game.config.vehicles")
+local tuning = require("game.config.tuning")
 local terrain = require("game.physics.terrain")
 local Blueprint = require("game.bridge.blueprint")
 local Run = require("game.core.run")
 local progress = require("game.core.progress")
+local achievements = require("game.core.achievements")
 local events = require("game.core.events")
 
 local M = {}
@@ -31,12 +33,45 @@ M.selected_node = nil      -- joint id chosen as the start of the next beam (tap
 M.preview = nil            -- ghost beam { x1, y1, x2, y2, mat, ok, err, cost }
 M.result = nil
 M.input = { gas = false, brake = false }
+M.paused = false
+M.hint_used = false
+M.budget_bonus = false
 
 local finish_delay = 0
 
 local function set_state(s)
 	M.state = s
 	events.emit("state", { state = s })
+end
+
+local function announce(list)
+	for _, a in ipairs(list or {}) do
+		events.emit("achievement", { id = a.id, icon = a.icon })
+	end
+end
+
+local function check_achievements(ctx)
+	ctx = ctx or {}
+	ctx.level = ctx.level or M.level
+	ctx.blueprint = ctx.blueprint or M.blueprint
+	if not ctx.beams and M.blueprint then ctx.beams = M.blueprint:beam_count() end
+	announce(achievements.check(ctx))
+end
+
+-- Highest beam stress in the current simulation (0..1+), used by the creak audio.
+function M.get_max_stress()
+	local run = M.run
+	if not run then return 0 end
+	local max = 0
+	for _, c in pairs(run.beam_of) do
+		if c.stress > max then max = c.stress end
+	end
+	return max
+end
+
+function M.set_paused(on)
+	M.paused = on and true or false
+	if on then M.input.gas, M.input.brake = false, false end
 end
 
 -- ------------------------------------------------------------------ level
@@ -54,9 +89,13 @@ function M.load_level(index)
 	M.selected_node = nil
 	M.preview = nil
 	M.tool = "build"
+	M.paused = false
+	M.hint_used = false
+	M.budget_bonus = false
 	-- keep the chosen material if this level has it, else the first one
 	if not M.blueprint.allowed[M.material] then M.material = lvl.materials[1] end
 	progress.record_attempt(lvl)
+	check_achievements({ meta = true })
 	set_state("build")
 	events.emit("level_loaded", { index = index })
 	return true
@@ -86,6 +125,8 @@ end
 -- ------------------------------------------------------------------ build mode
 function M.select_material(id)
 	if M.blueprint and M.blueprint.allowed[id] then
+		-- tutorial level: a single correct road, no way to fail at the UI
+		if M.level and M.level.assist then id = "road" end
 		M.material = id
 		M.tool = "build"
 		events.emit("design_changed", {})
@@ -125,8 +166,10 @@ function M.try_build(x1, y1, x2, y2)
 		events.emit("build_failed", { err = err, x = (x1 + x2) * 0.5, y = (y1 + y2) * 0.5 })
 		return false, err
 	end
+	progress.bump("built")
 	events.emit("built", { mat = M.material })
 	events.emit("design_changed", {})
+	check_achievements()
 	return true, bm
 end
 
@@ -171,7 +214,19 @@ function M.apply_hint()
 	M.blueprint:load(M.level.solution, true)
 	M.blueprint.undo_stack = st
 	M.selected_node = nil
+	M.hint_used = true
 	events.emit("hint", {})
+	events.emit("design_changed", {})
+	return true
+end
+
+-- Emergency help after repeated defeats: +25% budget for the current attempt.
+-- The caller grants it only after a rewarded break succeeded.
+function M.apply_budget_bonus()
+	if not M.blueprint or M.budget_bonus then return false end
+	M.budget_bonus = true
+	M.blueprint.budget = math.floor(M.blueprint.budget * 1.25 + 0.5)
+	events.emit("budget_bonus", { budget = M.blueprint.budget })
 	events.emit("design_changed", {})
 	return true
 end
@@ -183,10 +238,12 @@ function M.start_drive(vehicle_id)
 	M.save_design()
 	M.selected_node = nil
 	M.preview = nil
+	M.paused = false
 	M.input.gas, M.input.brake = false, false
 	M.run = Run.new(M.level, M.geo, M.blueprint, M.vehicle)
 	M.run.vehicle.input = M.input
 	finish_delay = 0
+	progress.bump("runs")
 	set_state("drive")
 	events.emit("drive_started", { vehicle = M.vehicle })
 	return true
@@ -198,6 +255,7 @@ function M.stop_drive()
 	M.run = nil
 	M.result = nil
 	M.input.gas, M.input.brake = false, false
+	M.paused = false
 	set_state("build")
 	events.emit("drive_stopped", {})
 	return true
@@ -219,38 +277,65 @@ local function make_result()
 		vehicle = M.vehicle,
 		vehicle_stars = def.stars,
 		cost = cost,
-		budget = M.level.budget,
-		ratio = cost / math.max(1, M.level.budget),
+		budget = M.blueprint.budget,
+		level_budget = M.level.budget,
+		ratio = cost / math.max(1, M.blueprint.budget),
 		level_index = M.index,
+		level_id = M.level.id,
 		time = run.end_time or run.time,
 		broken = run.broken,
+		beams = M.blueprint:beam_count(),
+		hint_used = M.hint_used,
+		budget_bonus = M.budget_bonus,
+		portals = run.portals or 0,
+		trick = run.trick_landed or false,
 	}
 	if won then
-		local rec = progress.record_win(M.level, def.stars, cost)
+		local rec = progress.record_win(M.level, def.stars, cost, { clean = run.broken == 0, broken = run.broken })
 		for k, v in pairs(rec) do res[k] = v end
 	else
 		res.stars = progress.stars(M.level.id)
+		progress.record_fail(M.level)
+		if run.reason ~= "stuck" then progress.bump("crashes") end
+		res.fails = progress.fail_streak(M.level.id)
+		res.can_assist = res.fails >= 3 and not M.budget_bonus
 	end
+	-- per-run counters for the profile / achievements
+	progress.bump("portals", run.portals or 0)
+	progress.bump("bounces", run.bounces or 0)
+	progress.bump("boosts", run.boosts or 0)
+	if run.trick_landed then progress.bump("tricks") end
 	res.has_next = levels.get(M.index + 1) ~= nil
 	res.next_unlocked = res.has_next and progress.level_unlocked(M.index + 1)
+	res.wallet = progress.wallet()
+	check_achievements({ run = run, result = res })
 	return res
 end
 
 function M.update(dt)
-	if M.state ~= "drive" or not M.run then return end
+	if M.state ~= "drive" or not M.run or M.paused then return end
 	local run = M.run
-	run:update(dt)
+	local scale = run.status == Run.RUNNING and 1 or 0.45
+	-- micro slow motion: a beam snaps close to the finish
+	if run.slowmo_t and run.slowmo_t > 0 then
+		run.slowmo_t = math.max(0, run.slowmo_t - dt)
+		scale = tuning.SLOWMO_SCALE
+	end
+	run:update(dt * scale)
 	local ev = run:pop_events()
 	if ev then
 		for _, e in ipairs(ev) do
 			if e.type == "break" then
 				events.emit("beam_broken", { id = e.id, x = e.x, y = e.y, mat = e.mat })
-			elseif e.type == "portal" or e.type == "bounce" or e.type == "boost" then
+			elseif e.type == "portal" or e.type == "bounce" or e.type == "boost" or e.type == "land" then
 				events.emit(e.type, e)
+			elseif e.type == "slowmo" then
+				events.emit("slowmo", e)
 			elseif e.type == Run.WON or e.type == Run.FAILED then
 				events.emit("run_finished", { won = e.type == Run.WON, reason = e.reason })
 			end
 		end
+		check_achievements({ run = run })
 	end
 	if run.status ~= Run.RUNNING then
 		finish_delay = finish_delay + dt

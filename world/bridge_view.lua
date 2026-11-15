@@ -100,16 +100,19 @@ function M.clear_build_helpers()
 end
 
 -- ------------------------------------------------------------------ drive mode
+-- Stress tint: completely invisible at rest (so materials keep their own colours), then
+-- green -> yellow -> pulsing red as the load approaches the breaking limit.
 local function stress_color(s)
+	if s <= 0.01 then return 0.25, 0.9, 0.3, 0 end
 	if s < 0.5 then
 		local k = s / 0.5
-		return 0.25 + 0.75 * k, 0.9, 0.3, 0.12 + 0.25 * k
+		return 0.25 + 0.75 * k, 0.9, 0.3, 0.16 * k * k
 	elseif s < 0.8 then
 		local k = (s - 0.5) / 0.3
-		return 1, 0.9 - 0.5 * k, 0.15, 0.4 + 0.2 * k
+		return 1, 0.9 - 0.5 * k, 0.15, 0.16 + 0.2 * k
 	end
 	local pulse = 0.5 + 0.5 * math.sin(t * 22)
-	return 1, 0.15, 0.1, 0.6 + 0.3 * pulse
+	return 1, 0.15, 0.1, 0.42 + 0.24 * pulse
 end
 
 function M.update_drive(dt, run)

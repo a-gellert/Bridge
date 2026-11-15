@@ -10,6 +10,7 @@ local last = {}
 local COOLDOWN = {
 	build = 0.05, erase = 0.05, error = 0.15, click = 0.04,
 	break_wood = 0.06, break_steel = 0.08, snap = 0.06, bounce = 0.2, boost = 0.4,
+	creak = 0.42, skid = 0.28, horn = 1.0, purchase = 0.3, achievement = 0.6,
 }
 
 local function sync()

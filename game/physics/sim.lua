@@ -35,6 +35,7 @@ function M.new(cfg)
 	self.node_cols = {}
 	self.node_statics = {}
 	self.time = 0
+	self.max_stress = 0
 	return self
 end
 
@@ -240,6 +241,7 @@ local function solve_beams(self, h)
 							ratio = 0
 						end
 						c.stress = c.stress + (ratio - c.stress) * smooth
+						if c.stress > self.max_stress then self.max_stress = c.stress end
 						if c.stress >= 1 then self:break_beam(c) end
 					end
 				end
@@ -484,6 +486,7 @@ end
 function M:step(dt)
 	local n = self.substeps
 	local h = dt / n
+	self.max_stress = 0
 	gather_candidates(self)
 	local vehicles = self.vehicles
 	for _ = 1, n do
