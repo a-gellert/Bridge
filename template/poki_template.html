@@ -154,6 +154,9 @@
       z-index: 30;
     }
   </style>
+  <link rel="dns-prefetch" href="//api.poki.com">
+  <link rel="dns-prefetch" href="//a.poki-cdn.com">
+  <script defer src="https://game-cdn.poki.com/scripts/v2/poki-sdk.js" onload="poki_sdk_loaded()" onerror="window.poki_sdk_failed && poki_sdk_failed()"></script>
 </head>
 <body>
   <div id="app-container" class="canvas-app-container">
@@ -247,20 +250,42 @@
 
   <script id="engine-loader" type="text/javascript" src="dmloader.js"></script>
   <script id="engine-setup" type="text/javascript">
-    var CUSTOM_PARAMETERS = {
-      disable_context_menu: true,
-      start_success: function () {
-        if (window.bmHideSplash) window.bmHideSplash();
-      },
-      update_progress: function (percentage) {
-        var p = Math.max(0, Math.min(100, percentage || 0));
-        var fill = document.getElementById('bm-fill');
-        var pct = document.getElementById('bm-pct');
-        if (fill) fill.style.transform = 'scaleX(' + Math.max(0.04, p / 100) + ')';
-        if (pct) pct.textContent = Math.round(p) + '%';
-        if (p >= 100) setTimeout(function () { if (window.bmHideSplash) window.bmHideSplash(); }, 1200);
+    // dmloader.js already owns the default CUSTOM_PARAMETERS (archive location filter,
+    // retry policy, heap size, resize callback, engine arguments). Declaring a new
+    // object here would replace all of it and make EngineLoader.load() throw
+    // "TypeError: Invalid filter" (archive_location_filter becomes undefined), so
+    // only override the keys this shell actually needs.
+    (function () {
+      if (typeof CUSTOM_PARAMETERS === 'undefined' || CUSTOM_PARAMETERS === null) {
+        // Very old engine bundles ship no defaults; keep archive loading alive.
+        window.CUSTOM_PARAMETERS = {
+          archive_location_filter: function (path) { return 'archive' + path; }
+        };
       }
-    };
+      var overrides = {
+        disable_context_menu: true,
+        start_success: function () {
+          if (window.bmHideSplash) window.bmHideSplash();
+        },
+        start_error: function (error) {
+          // Never leave the player on a frozen 0% splash.
+          var pct = document.getElementById('bm-pct');
+          if (pct) pct.textContent = 'Failed to start - please reload';
+          if (window.console) console.error('Bridge Mad failed to start:', error);
+        },
+        update_progress: function (percentage) {
+          var p = Math.max(0, Math.min(100, percentage || 0));
+          var fill = document.getElementById('bm-fill');
+          var pct = document.getElementById('bm-pct');
+          if (fill) fill.style.transform = 'scaleX(' + Math.max(0.04, p / 100) + ')';
+          if (pct) pct.textContent = Math.round(p) + '%';
+          if (p >= 100) setTimeout(function () { if (window.bmHideSplash) window.bmHideSplash(); }, 1200);
+        }
+      };
+      for (var key in overrides) {
+        if (Object.prototype.hasOwnProperty.call(overrides, key)) CUSTOM_PARAMETERS[key] = overrides[key];
+      }
+    })();
   </script>
   <script id="engine-start" type="text/javascript">
     (function () {
@@ -269,9 +294,59 @@
         if (warning) warning.style.display = 'block';
       } else {
         if (warning && warning.parentNode) warning.parentNode.removeChild(warning);
-        EngineLoader.load("canvas", "{{exe-name}}");
+        var ready = EngineLoader.load("canvas", "{{exe-name}}");
+        // Failures are reported through CUSTOM_PARAMETERS.start_error; keep the
+        // returned promise handled so the console stays free of unhandled rejections.
+        if (ready && typeof ready.catch === "function") ready.catch(function () {});
       }
     })();
+  </script>
+  <script id="poki-sdk-setup" type="text/javascript">
+    // The engine must not start before PokiSDK.init() resolves, otherwise the
+    // SDK reports a broken loading measurement. Start at most once, and never
+    // keep the player on a black screen if the SDK is blocked or offline.
+    var isWasmLoaded = false;
+    var isPokiSDKInited = false;
+    var isAppStarted = false;
+    function runFunc() {
+      if (isAppStarted || !isPokiSDKInited || !isWasmLoaded) return;
+      isAppStarted = true;
+      Module.runApp("canvas");
+    }
+    Module['onRuntimeInitialized'] = function () {
+      isWasmLoaded = true;
+      runFunc();
+    };
+    function poki_sdk_loaded() {
+      var data = {};
+      var isLoadFinished = false;
+      Progress.addListener(function (percentage) {
+        data.percentageDone = percentage / 100;
+        if (!isLoadFinished) PokiSDK.gameLoadingProgress(data);
+        if (percentage == 100 && !isLoadFinished) {
+          PokiSDK.gameLoadingFinished();
+          isLoadFinished = true;
+        }
+      });
+      PokiSDK.init().then(function () {
+        isPokiSDKInited = true;
+        runFunc();
+      }, function () {
+        isPokiSDKInited = true;
+        runFunc();
+      });
+    }
+    function poki_sdk_failed() {
+      if (isPokiSDKInited) return;
+      if (window.console) console.warn('Poki SDK did not load; starting the game without it.');
+      isPokiSDKInited = true;
+      runFunc();
+    }
+    // Deferred scripts finish (or fail) before window.load, so this also covers
+    // a silently blocked SDK.
+    window.addEventListener('load', function () {
+      if (!isPokiSDKInited) poki_sdk_failed();
+    }, false);
   </script>
 </body>
 </html>

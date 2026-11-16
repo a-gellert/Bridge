@@ -43,6 +43,20 @@ assert(tpl:find("{{exe-name}}", 1, true), "engine loader token")
 assert(tpl:find("EngineLoader.load", 1, true), "engine loader call")
 assert(tpl:find("contextmenu", 1, true), "context menu must be blocked")
 assert(tpl:find("bmUnlockAudio", 1, true) and tpl:find("ctx.resume", 1, true), "WebAudio unlock")
+-- Regression: the shell must extend dmloader's CUSTOM_PARAMETERS instead of
+-- replacing it. A fresh object drops archive_location_filter and
+-- EngineLoader.load() throws "TypeError: Invalid filter" before the game starts.
+assert(not tpl:find("var CUSTOM_PARAMETERS =", 1, true), "shell must not replace engine CUSTOM_PARAMETERS")
+assert(tpl:find("CUSTOM_PARAMETERS[key] = overrides[key]", 1, true), "shell must merge CUSTOM_PARAMETERS overrides")
+-- The Poki integration only lives in the shell: a rebuild must keep it, and the
+-- engine may only start once, after PokiSDK.init() (or a blocked SDK) resolves.
+assert(tpl:find("poki-sdk.js", 1, true), "Poki SDK must be loaded by the shell")
+assert(tpl:find("isAppStarted", 1, true), "engine start must be one-shot")
+local built_shell = readfile(ROOT .. "/release/wasm-web/BridgeMad/index.html")
+if built_shell then
+	assert(not built_shell:find("var CUSTOM_PARAMETERS =", 1, true), "built shell must not replace engine CUSTOM_PARAMETERS")
+	assert(built_shell:find("poki-sdk.js", 1, true), "built shell must load the Poki SDK")
+end
 local gp = assert(readfile(ROOT .. "/game.project"), "game.project is missing")
 assert(gp:find("htmlfile = /template/poki_template.html", 1, true), "custom HTML shell wired")
 assert(gp:find("com.madgames.bridgemad", 1, true), "mobile package id")
