@@ -502,8 +502,8 @@ def pine_tall():
         b.frustum(lean, 0, z0 + 0.12, z1, r0, r1, seg,
                   {"side": side, "top": top, "bottom": "pine_dk"}, angle0=0.2 * i)
         if i >= 2:
-            # thick snow blanket over the upper third of the tier
-            b.frustum(lean, 0, z1 - 0.26, z1 + 0.03, r1 + 0.07, r1 * 0.45, seg,
+            # snow blanket capping the tier tip
+            b.frustum(lean, 0, z1 - 0.03, z1 + 0.14, r1 + 0.04, r1 * 0.32, seg,
                       {"side": "snow", "top": "snow", "bottom": "snow"}, angle0=0.2 * i, cap0=False)
     b.tube((0, 0, 4.24), (0, 0, 4.95), 0.14, 0.015, 7, {"side": "pine_lt", "top": "pine_lt", "bottom": "pine"})
     return b
@@ -572,14 +572,14 @@ def ruin_arch():
                  {"side": "base", "front": "base_hi", "back": "base_dk",
                   "top": "base_hi", "bottom": "base_dk"}, bevel=0.03)
 
-    seg = 6
+    seg = 7
     for i in range(seg):
         if i == 3:
             continue  # keystone knocked out of the crown
         a = (i + 0.5) / seg * math.pi
         cx = math.cos(a) * 1.85
-        cz = 3.16 + math.sin(a) * 1.85
-        b.cbox_c(cx, 0, cz, 0.78, 0.86, 0.62,
+        cz = 3.02 + math.sin(a) * 1.85
+        b.cbox_c(cx, 0, cz, 0.94, 0.86, 0.64,
                  {"side": "base_lo", "front": "base_hi", "back": "base_dk",
                   "top": "base", "bottom": "base_dk"}, bevel=0.045, rot_y=-a)
     b.cbox_c(0.0, 0.16, 0.16, 0.62, 0.5, 0.3,
@@ -600,9 +600,9 @@ def ruin_arch():
               "top": "base_hi", "bottom": "base_dk"}, bevel=0.04, rot_y=0.5)
 
     for x, z, h in ((-1.9, 2.2, 1.25), (-1.7, 3.3, 0.75), (1.5, 3.25, 0.85), (0.35, 4.25, 0.5)):
-        b.cbox_c(x, -0.58, z, 0.16, 0.09, h, "leaf_dk", bevel=0.015)
-        b.cbox_c(x, -0.6, z - h * 0.3, 0.2, 0.07, 0.16, "leaf", bevel=0.01)
-    b.cbox_c(1.15, -0.5, 3.55, 0.24, 0.1, 0.5, "leaf_dk", bevel=0.02)
+        b.cbox_c(x, -0.47, z, 0.16, 0.09, h, "leaf_dk", bevel=0.015)
+        b.cbox_c(x, -0.49, z - h * 0.3, 0.2, 0.07, 0.16, "leaf", bevel=0.01)
+    b.cbox_c(1.15, -0.46, 3.55, 0.24, 0.1, 0.5, "leaf_dk", bevel=0.02)
     return b
 
 
@@ -675,11 +675,12 @@ def windmill_tower():
     b.cbox_c(0, 0, 6.66, 0.16, 0.16, 0.18, "chrome_dk", bevel=0.02)
 
     # front balcony walkway
-    b.cbox_c(0, -1.05, 3.28, 1.5, 0.6, 0.1, {"side": "wood_dk", "top": "wood", "bottom": "wood_dk"}, bevel=0.02)
+    b.cbox_c(0, -1.0, 3.28, 1.5, 0.52, 0.1, {"side": "wood_dk", "top": "wood", "bottom": "wood_dk"}, bevel=0.02)
+    b.cbox_c(0, -1.24, 3.86, 1.5, 0.07, 0.07, "wood", bevel=0.012)
     for sx in (-1, 1):
-        b.cbox_c(sx * 0.66, -1.3, 3.58, 0.08, 0.08, 0.6, "wood_dk", bevel=0.012)
-        b.tube((sx * 0.66, -1.3, 3.28), (sx * 0.9, -0.62, 3.9), 0.045, 0.045, 4, "wood_dk")
-    b.cbox_c(0, -1.3, 3.88, 1.42, 0.07, 0.07, "wood", bevel=0.012)
+        b.cbox_c(sx * 0.68, -1.24, 3.58, 0.07, 0.07, 0.56, "wood_dk", bevel=0.012)
+        b.cbox_c(sx * 0.34, -1.24, 3.58, 0.05, 0.05, 0.5, "wood_dk", bevel=0.01)
+    b.cbox_c(0, -1.24, 3.34, 1.5, 0.06, 0.06, "wood_dk", bevel=0.01)
 
     # door, window, hatch
     b.cbox_c(0, -1.0, 0.95, 0.62, 0.14, 1.62, {"side": "wood_dk", "top": "wood", "bottom": "wood_dk"}, bevel=0.02)
@@ -714,12 +715,12 @@ def windmill_blades():
         b.rot_box_y(ca * 2.12, 0, sa * 2.12, 0.22, 0.16, 0.16, a,
                     {"side": "wood_dk", "front": "wood", "back": "wood_dk",
                      "top": "wood", "bottom": "wood_dk"})
-        for k in (0.6, 1.0, 1.4):
-            b.rot_box_y(ca * k, 0, sa * k, 0.1, 0.1, 0.95, a,
+        for k in (0.55, 0.85, 1.15, 1.45, 1.75):
+            b.rot_box_y(ca * k, 0, sa * k, 0.09, 0.09, 0.94, a,
                         {"side": "wood_dk", "front": "wood", "back": "wood_dk",
                          "top": "wood", "bottom": "wood_dk"})
-        for k in (0.8, 1.2):
-            b.rot_box_y(ca * k, 0, sa * k, 0.36, 0.05, 0.76, a,
+        for k in (0.7, 1.0, 1.3, 1.6):
+            b.rot_box_y(ca * k, 0, sa * k, 0.23, 0.05, 0.74, a,
                         {"side": "base_hi", "front": "white", "back": "base_lo",
                          "top": "base_hi", "bottom": "base_lo"})
         b.rot_box_y(ca * 0.36, 0, sa * 0.36, 0.16, 0.14, 0.14, a, "chrome_dk")
@@ -727,7 +728,7 @@ def windmill_blades():
 
 
 def bird():
-    """Distant bird: faceted body, swept wings, forked tail."""
+    """Distant bird: faceted body, swept plate wings, forked tail."""
     b = Builder()
     b.tube((-0.3, 0, 0.02), (0.26, 0, 0.04), 0.13, 0.09, 6,
            {"side": "base_lo", "top": "base_hi", "bottom": "base_dk"})
@@ -735,14 +736,12 @@ def bird():
            {"side": "flag_k", "top": "base_hi", "bottom": "flag_k"})
     b.tube((0.39, 0, 0.1), (0.55, 0, 0.08), 0.04, 0.004, 4, "boost")
     for sy in (-1, 1):
-        b.poly([(-0.3, sy * 0.02, 0.03), (-0.62, sy * 0.05, 0.12),
-                (-0.6, sy * 0.05, 0.06), (-0.3, sy * 0.02, -0.02)], "base_dk")
-        # swept wing, upper + lower skin
-        top = [(0.12, sy * 0.03, 0.06), (-0.16, sy * 0.03, 0.03),
-               (-0.34, sy * 0.5, 0.28), (0.04, sy * 0.46, 0.24)]
-        b.poly(top, "white")
-        b.poly([(p[0], p[1], p[2] - 0.03) for p in top], "base_lo")
-        b.poly([top[0], top[3], (top[3][0], top[3][1], top[3][2] - 0.03), (top[0][0], top[0][1], top[0][2] - 0.03)], "base_hi")
+        # forked tail plate
+        b.prism_z([(-0.28, sy * 0.04), (-0.58, sy * 0.16), (-0.58, sy * 0.06), (-0.28, sy * 0.0)],
+                  0.0, 0.03, {"side": "base_dk", "top": "base", "bottom": "base_dk"})
+        # swept wing plate (convex quad so the fan cap stays clean)
+        b.prism_z([(0.14, sy * 0.05), (-0.2, sy * 0.05), (-0.44, sy * 0.5), (-0.06, sy * 0.5)],
+                  0.0, 0.045, {"side": "white", "top": "white", "bottom": "base_lo"})
     return b
 
 
@@ -1003,11 +1002,11 @@ def lab_terminal():
               "top": "cargo_lt", "bottom": "cargo_dk"}, bevel=0.014)
     b.cbox_c(0.62, -0.39, 1.15, 0.36, 0.02, 0.26, "lab_line", bevel=0.008)
     # feet + cables
-    for sx in (-0.36, 0.36):
-        b.cbox_c(sx, -0.28, 0.03, 0.12, 0.12, 0.06, "chrome_dk", bevel=0.01)
-        b.cbox_c(sx, 0.28, 0.03, 0.12, 0.12, 0.06, "chrome_dk", bevel=0.01)
-    b.tube((-0.34, -0.34, 0.06), (-0.34, -0.66, 0.06), 0.045, 0.045, 5, "cargo_dk")
-    b.tube((0.14, -0.34, 0.06), (0.44, -0.66, 0.06), 0.05, 0.05, 5, "cargo_dk")
+    for sx in (-0.4, 0.4):
+        for sy in (-0.32, 0.32):
+            b.cbox_c(sx, sy, 0.04, 0.14, 0.14, 0.08, "chrome_dk", bevel=0.01)
+    b.tube((-0.34, -0.34, 0.05), (-0.34, -0.56, 0.05), 0.032, 0.032, 5, "cargo_dk")
+    b.tube((0.14, -0.34, 0.05), (0.34, -0.56, 0.05), 0.034, 0.034, 5, "cargo_dk")
     return b
 
 
@@ -1099,9 +1098,9 @@ def lantern_post():
             b.cbox_c(0.5 + sx * 0.135, sy * 0.135, 1.8, 0.04, 0.04, 0.34, "black", bevel=0.006)
     for sx, sy, ax in ((0, -1, "x"), (0, 1, "x"), (-1, 0, "y"), (1, 0, "y")):
         if ax == "x":
-            b.cbox_c(0.5, sy * 0.13, 1.8, 0.22, 0.02, 0.28, "glass_lt", bevel=0.004)
+            b.cbox_c(0.5, sy * 0.13, 1.8, 0.22, 0.02, 0.28, "light", bevel=0.004)
         else:
-            b.cbox_c(0.5 + sx * 0.13, 0, 1.8, 0.02, 0.22, 0.28, "glass_lt", bevel=0.004)
+            b.cbox_c(0.5 + sx * 0.13, 0, 1.8, 0.02, 0.22, 0.28, "light", bevel=0.004)
     b.cbox_c(0.5, 0, 1.62, 0.36, 0.36, 0.06, {"top": "black", "side": "black", "bottom": "cargo_dk"}, bevel=0.012)
     return b
 
