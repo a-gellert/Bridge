@@ -1,5 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 
-# shell scripts must keep LF or sh fails on ""
+# shell scripts must keep LF line endings, sh fails on a trailing CR
 *.sh text eol=lf
