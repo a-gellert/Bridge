@@ -102,6 +102,19 @@
 3. **Экспорт в Defold:**
    * Формат: `.gltf` / `.glb` или `.dae` (Collada).
    * При экспорте из Blender через Python-скрипт применяйте трансформации (`Apply Transforms: Rotation & Scale`).
+4. **Генератор и превью:**
+   * Геометрия — `tools/blender/gen_models.py`: жёсткие блоки только через `Builder.chamfer_box`
+     (фаска 12 рёбер + 8 углов, цвет фаски `lighten(base)`), арки — `arch_ring`, органика — 3–8
+     смещённых `blob`/`tube`. Один `.glb` на модель, материалы не экспортируются
+     (`export_materials="NONE"`), их подменяет `voxel.material`.
+   * Окружение для проверки — `tools/blender/studio.py` (палитровый материал, градиентный мир,
+     циклорама, софтбоксы, камера 65 мм, AgX/EEVEE) и `tools/blender/render_previews.py`
+     (рендер каждого `.glb` в `build/blender_previews/<id>.png`). Ракурсы — в словаре `VIEWS`.
+   * Живой Blender без MCP-моста: `& "D:\Programs\Blender\5.2\python\bin\python.exe" tools/blender/mcp_client.py --file script.py`
+     (аддон BlenderMCP, сокет `127.0.0.1:9876`). Долгие рендеры запускайте из CLI:
+     мост может оборвать ожидание, а Blender продолжит работу.
+   * Ступица мельницы в `world/level_view.lua` привязана к модели: `h + 4.72·s` для высоты и
+     `z + 1.45·s` для плоскости лопастей — правьте вместе с `windmill`.
 
 ---
 

@@ -346,7 +346,7 @@ class Builder:
                       c.get("side"))
         return self
 
-    def arch_ring(self, rx0, rz0, rx1, rz1, y0, y1, segs, colors, start_angle=0.0, end_angle=math.pi * 2):
+    def arch_ring(self, rx0, rz0, rx1, rz1, y0, y1, segs, colors, start_angle=0.0, end_angle=math.pi * 2, cx=0.0, cz=0.0):
         """Continuous polygonal ring / arch in X-Z plane extruded along Y."""
         c = self._c(colors)
         front = c.get("front")
@@ -360,14 +360,14 @@ class Builder:
             a1 = start_angle + (i + 1) * step
             ca0, sa0 = math.cos(a0), math.sin(a0)
             ca1, sa1 = math.cos(a1), math.sin(a1)
-            p_in0_f = (ca0 * rx0, y0, sa0 * rz0)
-            p_in1_f = (ca1 * rx0, y0, sa1 * rz0)
-            p_out0_f = (ca0 * rx1, y0, sa0 * rz1)
-            p_out1_f = (ca1 * rx1, y0, sa1 * rz1)
-            p_in0_b = (ca0 * rx0, y1, sa0 * rz0)
-            p_in1_b = (ca1 * rx0, y1, sa1 * rz0)
-            p_out0_b = (ca0 * rx1, y1, sa0 * rz1)
-            p_out1_b = (ca1 * rx1, y1, sa1 * rz1)
+            p_in0_f = (cx + ca0 * rx0, y0, cz + sa0 * rz0)
+            p_in1_f = (cx + ca1 * rx0, y0, cz + sa1 * rz0)
+            p_out0_f = (cx + ca0 * rx1, y0, cz + sa0 * rz1)
+            p_out1_f = (cx + ca1 * rx1, y0, cz + sa1 * rz1)
+            p_in0_b = (cx + ca0 * rx0, y1, cz + sa0 * rz0)
+            p_in1_b = (cx + ca1 * rx0, y1, cz + sa1 * rz0)
+            p_out0_b = (cx + ca0 * rx1, y1, cz + sa0 * rz1)
+            p_out1_b = (cx + ca1 * rx1, y1, cz + sa1 * rz1)
             self.poly([p_in0_f, p_out0_f, p_out1_f, p_in1_f], front)
             self.poly([p_in0_b, p_in1_b, p_out1_b, p_out0_b], back)
             self.poly([p_in0_f, p_in1_f, p_in1_b, p_in0_b], inner)
@@ -471,7 +471,7 @@ def tree_blossom():
         (-0.22, 0.06, 3.18, "flower_y"),
     )
     for i, (x, y, z, col) in enumerate(blossoms):
-        b.blob(x, y, z, 0.16, 0.15, 0.13, 5, 3,
+        b.blob(x * 1.08, y * 1.08, z + 0.02, 0.18, 0.17, 0.15, 5, 3,
                {"side": col, "top": "white", "bottom": col}, seed=40 + i, jitter=0.25)
     return b
 
@@ -576,12 +576,13 @@ def ruin_arch():
     for i in range(seg):
         if i == 3:
             continue  # keystone knocked out of the crown
-        a = (i + 0.5) / seg * math.pi
-        cx = math.cos(a) * 1.85
-        cz = 3.02 + math.sin(a) * 1.85
-        b.cbox_c(cx, 0, cz, 0.94, 0.86, 0.64,
-                 {"side": "base_lo", "front": "base_hi", "back": "base_dk",
-                  "top": "base", "bottom": "base_dk"}, bevel=0.045, rot_y=-a)
+        a0 = i / seg * math.pi
+        a1 = (i + 1) / seg * math.pi
+        front = "base_hi" if i % 2 == 0 else "base_lo"
+        outer = "base" if i % 2 == 0 else "base_lo"
+        b.arch_ring(1.6, 1.6, 2.42, 2.42, -0.43, 0.43, 1,
+                    {"front": front, "back": "base_dk", "inner": "base_dk", "outer": outer},
+                    start_angle=a0, end_angle=a1, cz=3.02)
     b.cbox_c(0.0, 0.16, 0.16, 0.62, 0.5, 0.3,
              {"side": "base_lo", "front": "base", "back": "base_dk",
               "top": "base_hi", "bottom": "base_dk"}, bevel=0.035, rot_y=0.6)
@@ -632,8 +633,8 @@ def crystal_cluster():
         shaft = (p1[0] - ax[0] * 0.2, p1[1] - ax[1] * 0.2, p1[2] - ax[2] * 0.2)
         b.tube(p0, shaft, r0, r1, 6, {"side": col, "top": lighten(col), "bottom": col})
         tip = (p1[0] + ax[0] * 0.16, p1[1] + ax[1] * 0.16, p1[2] + ax[2] * 0.16)
-        tip_col = "white" if i == 0 else lighten(col)
-        b.tube(shaft, tip, r1, 0.004, 6, {"side": tip_col, "top": "white", "bottom": col})
+        tip_col = "white" if i == 0 else col
+        b.tube(shaft, tip, r1, 0.004, 6, {"side": tip_col, "top": lighten(col), "bottom": col})
     return b
 
 
@@ -740,7 +741,7 @@ def bird():
         b.prism_z([(-0.28, sy * 0.04), (-0.58, sy * 0.16), (-0.58, sy * 0.06), (-0.28, sy * 0.0)],
                   0.0, 0.03, {"side": "base_dk", "top": "base", "bottom": "base_dk"})
         # swept wing plate (convex quad so the fan cap stays clean)
-        b.prism_z([(0.14, sy * 0.05), (-0.2, sy * 0.05), (-0.44, sy * 0.5), (-0.06, sy * 0.5)],
+        b.prism_z([(0.12, sy * 0.05), (-0.16, sy * 0.05), (-0.28, sy * 0.5), (0.0, sy * 0.5)],
                   0.0, 0.045, {"side": "white", "top": "white", "bottom": "base_lo"})
     return b
 

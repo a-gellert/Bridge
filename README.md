@@ -79,18 +79,46 @@ tests/                Node + fengari: физика, уровни, сессия, 
 
 ## Blender-модели и живое окружение
 
-Крупный декор и «жизнь» сцен рендерятся из отдельных `.glb`, собранных в Blender 5.2 (без MCP-соединения, headless-скриптом — так быстрее и не открывает GUI):
+Крупный декор и «жизнь» сцен рендерятся из отдельных `.glb`, собранных в Blender 5.2:
 
 ```powershell
-& "D:\Programs\Blender\blender.exe" -b -P tools\blender\gen_models.py
+& "D:\Programs\Blender\blender.exe" -b -P tools\blender\gen_models.py     # пересобрать модели
+& "D:\Programs\Blender\blender.exe" -b -P tools\blender\render_previews.py # превью в build\blender_previews
 node tools/gen_assets.js
 ```
 
-`tools/blender/gen_models.py` создаёт `tree_blossom`, `pine_tall`, `rock_arch`, `ruin_arch`, `crystal_cluster`, `windmill`, `windmill_blades`, `bird`, `butterfly`. UV каждой грани указывают в клетку общей палитры `assets/textures/palette.png`, поэтому Defold-материал `voxel.material` красит их так же, как процедурные модели.
+`tools/blender/gen_models.py` создаёт `tree_blossom`, `pine_tall`, `rock_arch`, `ruin_arch`,
+`crystal_cluster`, `windmill`, `windmill_blades`, `bird`, `butterfly`, `portal_blue`,
+`portal_orange`, `lab_generator`, `lab_terminal`, `energy_pylon`, `chamber_sign`,
+`cactus_saguaro`, `lantern_post`. UV каждой грани указывают в клетку общей палитры
+`assets/textures/palette.png`, поэтому Defold-материал `voxel.material` красит их так же, как
+процедурные модели.
+
+Стиль геометрии: все жёсткие блоки строятся через `Builder.chamfer_box` — фаска на 12 рёбрах
+и 8 срезанных углов, причём фаска красится в `lighten(color)`, поэтому ребро ловит светлый
+тексель («drive mad»-объём). Органика собирается из нескольких смещённых `blob`/`tube`,
+арки — непрерывным `arch_ring` с чередованием цветов вместо отдельных блоков.
+
+### Студия для превью
+
+`tools/blender/studio.py` — детерминированная продуктовая сцена: материал палитры
+(Image Texture + Closest, как `voxel.material`), трёхступенчатый градиентный мир,
+бесшовный циклорамный задник, софтбоксы key/fill/rim/top, камера 65 мм по габаритам объекта,
+AgX + raytraced-тени в EEVEE. `render_previews.py` рендерит каждый `.glb` со своим ракурсом
+(`VIEWS`) в `build/blender_previews/<id>.png` — так модель проверяется без Defold.
+
+Скрипты работают и через живой Blender: `tools/blender/mcp_client.py` говорит с аддоном
+BlenderMCP по сокету `127.0.0.1:9876` тем же протоколом, что и MCP-мост:
+
+```powershell
+& "D:\Programs\Blender\5.2\python\bin\python.exe" tools\blender\mcp_client.py --code "import runpy; runpy.run_path(r'D:/DProjects/Bridge/tools/blender/gen_models.py', run_name='__main__')"
+& "D:\Programs\Blender\5.2\python\bin\python.exe" tools\blender\mcp_client.py --file some_script.py
+```
 
 `world/level_view.lua` добавляет:
 - лендмарк главы на видимом берегу (мельница, руины, кристаллы или каменная арка);
-- качание деревьев/кустов/цветов от ветра, вращение лопастей мельницы;
+- качание деревьев/кустов/цветов от ветра, вращение лопастей мельницы (ступица мельницы —
+  `h + 4.72·s`, плоскость лопастей — `z + 1.45·s`, держите эти числа в синхроне с моделью);
 - птиц, бабочек и ambient-частицы (лепестки, пыль, искры, снег);
 - блики на воде.
 

@@ -113,11 +113,11 @@ local function spawn_landmark(view, gos, theme, level, geo, rand)
 		local s = 0.92
 		local tower = add(gos, spawn.create("windmill", x, h, z, 0, s, s, s))
 		spawn.tint(tower, 1.0, 0.97, 0.9, 1)
-		local hub_y = h + 4.15 * s
-		local blades = add(gos, spawn.create("windmill_blades", x, hub_y, z + 0.95 * s, 0, s, s, s))
+		local hub_y = h + 4.72 * s
+		local blades = add(gos, spawn.create("windmill_blades", x, hub_y, z + 1.45 * s, 0, s, s, s))
 		spawn.tint(blades, 0.96, 0.94, 0.9, 1)
 		view.rotors[#view.rotors + 1] = {
-			go = blades, x = x, y = hub_y, z = z + 0.95 * s, s = s,
+			go = blades, x = x, y = hub_y, z = z + 1.45 * s, s = s,
 			angle = rand() * math.pi * 2, speed = 0.32 + rand() * 0.18,
 		}
 	elseif id == "crystal_cluster" then
