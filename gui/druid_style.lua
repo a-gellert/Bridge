@@ -8,6 +8,14 @@ local function scaled(base, k)
 	return V3(base.x * k, base.y * k, base.z)
 end
 
+-- Set by gui/ui.lua: called when a button settled back to its rest scale (restarts its pulse).
+M.on_settle = nil
+
+-- gui.animate completion callback (self, node)
+local function settle(_, node)
+	if M.on_settle then M.on_settle(node) end
+end
+
 M["button"] = {
 	LONGTAP_TIME = 0.4,
 	AUTOHOLD_TRIGGER = 0.8,
@@ -19,18 +27,19 @@ M["button"] = {
 
 	on_hover = function(self, node, state)
 		local target = state and scaled(self.start_scale, 0.92) or self.start_scale
-		gui.animate(node, gui.PROP_SCALE, target, state and gui.EASING_OUTQUAD or gui.EASING_OUTBACK, state and 0.06 or 0.18)
+		gui.animate(node, gui.PROP_SCALE, target, state and gui.EASING_OUTQUAD or gui.EASING_OUTBACK, state and 0.06 or 0.18,
+			0, not state and settle or nil)
 	end,
 
 	on_mouse_hover = function(self, node, state)
 		if self.hover:is_hovered() then return end
 		local target = state and scaled(self.start_scale, 1.05) or self.start_scale
-		gui.animate(node, gui.PROP_SCALE, target, gui.EASING_OUTSINE, 0.1)
+		gui.animate(node, gui.PROP_SCALE, target, gui.EASING_OUTSINE, 0.1, 0, not state and settle or nil)
 	end,
 
 	on_click = function(self, node)
 		gui.set_scale(node, scaled(self.start_scale, 1.08))
-		gui.animate(node, gui.PROP_SCALE, self.start_scale, gui.EASING_OUTBACK, 0.22)
+		gui.animate(node, gui.PROP_SCALE, self.start_scale, gui.EASING_OUTBACK, 0.22, 0, settle)
 		if not self.silent then settings.play_sound(M.button.BTN_SOUND) end
 	end,
 

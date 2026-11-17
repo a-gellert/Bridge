@@ -169,9 +169,14 @@ function M.build(app, root, res)
 
 	if is_3_stars and can_next then
 		ui.label(panel, i18n.t("auto_next"), 0, top - 418, 24, ui.GREEN, pw - 60)
-		-- Seamless automatic transition on 3 stars
+		-- Seamless automatic transition on 3 stars. Long enough to watch the stars and the budget
+		-- land; a draining bar above the buttons shows when it happens (FIX / menu cancel it).
+		local AUTO_NEXT = 2.8
+		local cd = ui.bar(panel, 0, -ph / 2 + 110, pw - 60, 8, ui.GREEN)
+		gui.set_size(cd.fill, V3(cd.w, cd.h, 0))
+		gui.animate(cd.fill, "size.x", cd.h, gui.EASING_LINEAR, AUTO_NEXT)
 		local gen = app.gen
-		timer.delay(1.2, false, function()
+		timer.delay(AUTO_NEXT, false, function()
 			if app.gen ~= gen then return end
 			if session.state == "result" and res.won then
 				app.next_level()

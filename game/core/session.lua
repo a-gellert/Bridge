@@ -31,6 +31,8 @@ M.tool = "build"           -- "build" | "erase"
 M.vehicle = "truck"
 M.selected_node = nil      -- joint id chosen as the start of the next beam (tap-tap building)
 M.preview = nil            -- ghost beam { x1, y1, x2, y2, mat, ok, err, cost }
+M.hover_node = nil         -- desktop hover: joint a click would grab (build tool)
+M.hover_beam = nil         -- desktop hover: beam a click would delete (erase tool)
 M.result = nil
 M.input = { gas = false, brake = false }
 M.paused = false
@@ -88,6 +90,7 @@ function M.load_level(index)
 	M.result = nil
 	M.selected_node = nil
 	M.preview = nil
+	M.hover_node, M.hover_beam = nil, nil
 	M.tool = "build"
 	M.paused = false
 	M.hint_used = false
@@ -137,6 +140,7 @@ function M.set_tool(tool)
 	M.tool = tool
 	M.selected_node = nil
 	M.preview = nil
+	M.hover_node, M.hover_beam = nil, nil
 	events.emit("design_changed", {})
 end
 
@@ -177,6 +181,7 @@ function M.erase_beam(id)
 	if M.state ~= "build" then return false end
 	if M.blueprint:remove_beam(id) then
 		M.selected_node = nil
+		if M.hover_beam == id then M.hover_beam = nil end
 		events.emit("erased", {})
 		events.emit("design_changed", {})
 		return true
@@ -238,6 +243,7 @@ function M.start_drive(vehicle_id)
 	M.save_design()
 	M.selected_node = nil
 	M.preview = nil
+	M.hover_node, M.hover_beam = nil, nil
 	M.paused = false
 	M.input.gas, M.input.brake = false, false
 	M.run = Run.new(M.level, M.geo, M.blueprint, M.vehicle)
@@ -357,6 +363,7 @@ function M.exit_to_menu()
 	M.result = nil
 	M.preview = nil
 	M.selected_node = nil
+	M.hover_node, M.hover_beam = nil, nil
 	set_state("menu")
 end
 

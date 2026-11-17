@@ -148,7 +148,7 @@ function M.build(app, root)
 	-- undo / clear (/ hint in landscape)
 	local bx2 = stacked and (tw / 2 - 150) or (tw / 2 - 210)
 	local _, ub = ui.btn(top, bx2, row2, 80, 62, "", function()
-		if session.undo() then audio.play("erase", 0.6) end
+		session.undo() -- the "erased" event plays the sound
 		M.refresh(app)
 	end, { icon = "undo", icon_size = 38 })
 	h.undo_btn = ub
@@ -361,7 +361,15 @@ function M.on_key(app, action_id, action)
 	elseif name == "erase" then
 		toggle_erase(app)
 	elseif name == "back" then
-		session.exit_to_menu()
+		-- Esc peels one layer at a time: selection / ghost -> eraser -> menu
+		if session.selected_node or session.preview then
+			session.selected_node = nil
+			session.set_preview(nil)
+		elseif session.tool == "erase" then
+			session.set_tool("build")
+		else
+			session.exit_to_menu()
+		end
 	elseif name == "zoom_in" then
 		camera.zoom_at(camera.w / 2, camera.h / 2, 0.85)
 	elseif name == "zoom_out" then

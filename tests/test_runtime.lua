@@ -152,6 +152,11 @@ local cx, cy = world_screen(6, 0)
 tap_screen(cx, cy)
 assert(session.blueprint:beam_count() == 2, "chained second beam")
 
+-- Esc peels one layer at a time: the selection first, the level only after that
+assert(session.selected_node, "chain end is selected")
+press_key("back")
+assert(session.state == "build" and not session.selected_node, "Esc drops the selection, stays in the level")
+
 -- erase tool removes the beam under the finger, undo brings it back
 click_text("ЛАСТИК")
 assert(session.tool == "erase")
@@ -160,6 +165,18 @@ tap_screen(mx, my)
 assert(session.blueprint:beam_count() == 1, "erased one beam")
 press_key("undo")
 assert(session.blueprint:beam_count() == 2, "undo restores it")
+-- one swipe across both beams deletes both, undo twice restores them
+local sx0, sy0 = world_screen(1.5, 0)
+local sx1, sy1 = world_screen(4.5, 0)
+drag_screen(sx0, sy0, sx1, sy1)
+assert(session.blueprint:beam_count() == 0, "eraser swipe deletes every beam it crosses")
+press_key("undo")
+press_key("undo")
+assert(session.blueprint:beam_count() == 2, "undo restores the swiped beams")
+-- Esc leaves the eraser before it leaves the level
+press_key("back")
+assert(session.state == "build" and session.tool == "build", "Esc switches the eraser off")
+click_text("ЛАСТИК")
 
 -- a tap on the HUD must not build or pan the world
 local before = session.blueprint:beam_count()
@@ -175,6 +192,10 @@ assert(session.input.gas, "gas key held")
 key("gas", false, true)
 press_key("reset")
 assert(session.state == "build", "R returns to building")
+press_key("go")
+assert(session.state == "drive", "space launches again")
+press_key("go")
+assert(session.state == "build", "space toggles back to building")
 
 -- pedals on a touch screen (portrait): press GAS
 press_key("go")

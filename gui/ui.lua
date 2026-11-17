@@ -39,6 +39,7 @@ M.context = nil
 function M.init(context)
 	M.context = context
 	druid.set_default_style(druid_style)
+	druid_style.on_settle = function(node) M.resume_pulse(node) end
 	druid.set_sound_function(function(id) audio.play(id, 0.6) end)
 end
 
@@ -202,11 +203,24 @@ function M.set_star(n, on)
 	gui.set_color(n, on and M.STAR or M.STAR_OFF)
 end
 
+-- Rest scale of nodes that are popping in or pulsing (weak keys: deleted nodes drop out).
+-- pulse() must breathe around the rest scale, not around the 1% scale a running pop() starts from.
+local rest = setmetatable({}, { __mode = "k" })
+local pulses = setmetatable({}, { __mode = "k" })
+
+local function rest_scale(n)
+	return rest[n] or gui.get_scale(n)
+end
+
 -- Pop-in animation
 function M.pop(n, delay)
-	local s = gui.get_scale(n)
+	local s = rest_scale(n)
+	rest[n] = s
 	gui.set_scale(n, s * 0.01)
-	gui.animate(n, gui.PROP_SCALE, s, gui.EASING_OUTBACK, 0.35, delay or 0)
+	gui.animate(n, gui.PROP_SCALE, s, gui.EASING_OUTBACK, 0.35, delay or 0, function()
+		local p = pulses[n]
+		if p then M.pulse(n, p.k, p.period) end
+	end)
 end
 
 function M.fade_in(n, time, delay)
@@ -217,9 +231,23 @@ function M.fade_in(n, time, delay)
 	gui.animate(n, "color.w", a, gui.EASING_OUTQUAD, time or 0.25, delay or 0)
 end
 
+-- Breathing scale loop around the node's rest scale. Safe to call right after pop() (it starts
+-- when the pop lands) and restarted by the Druid button style after a press / hover.
 function M.pulse(n, k, period)
-	local s = gui.get_scale(n)
+	local s = rest_scale(n)
+	rest[n] = s
+	pulses[n] = { k = k or 1.06, period = period or 0.7 }
+	if gui.get_scale(n).x < s.x * 0.5 then return end -- still popping in: pop() starts the pulse
 	gui.animate(n, gui.PROP_SCALE, s * (k or 1.06), gui.EASING_INOUTSINE, period or 0.7, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+end
+
+-- Druid style hook: a pressed / hovered button settled back to its rest scale.
+function M.resume_pulse(n)
+	local p = pulses[n]
+	if p then
+		gui.set_scale(n, rest[n])
+		M.pulse(n, p.k, p.period)
+	end
 end
 
 return M

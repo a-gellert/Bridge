@@ -3,8 +3,11 @@
 --   tap a joint, tap a point   -> build from the selected joint (chain building, finger never hides the target)
 --   tap the selected joint     -> deselect
 --   drag empty space           -> pan,  pinch / mouse wheel -> zoom
---   erase tool or right click  -> delete the beam under the pointer
--- Desktop extra: with a joint selected, the ghost follows the mouse.
+--   erase tool: press / swipe over beams -> delete every beam under the pointer (press on empty space pans)
+--   right mouse button (held)  -> delete beams under the cursor while it moves
+-- The dragged ghost end clicks (sound + light vibration) each time it snaps to a new grid point.
+-- Desktop extra: with a joint selected, the ghost follows the mouse; hovering highlights the joint
+-- (or, with the eraser, the beam) that a click would use.
 -- Fed by the GUI script with raw screen coordinates (action.screen_x/screen_y), only for input
 -- the HUD did not consume.
 local tuning = require("game.config.tuning")
@@ -12,6 +15,8 @@ local snap = require("game.bridge.snap")
 local Blueprint = require("game.bridge.blueprint")
 local session = require("game.core.session")
 local camera = require("world.camera")
+local audio = require("platform.audio")
+local haptics = require("platform.haptics")
 
 local M = {}
 
@@ -27,6 +32,8 @@ M.touch = false
 
 local st = { mode = "idle" }
 local pinch = nil
+local right_held = false
+local last_snap = nil -- "x,y" of the last ghost end point (snap feedback)
 
 local function dist(ax, ay, bx, by)
 	local dx, dy = bx - ax, by - ay
@@ -68,8 +75,46 @@ local function show_preview(from, sx, sy, drag)
 	local x, y = target_from(from, sx, sy, drag)
 	if x then
 		session.set_preview(from.x, from.y, x, y)
+		-- tactile grid: tick whenever the dragged end jumps to another snap point
+		local k = x .. "," .. y
+		if drag and last_snap and k ~= last_snap then
+			local ok = session.preview and session.preview.ok
+			audio.play("click", ok and 0.22 or 0.12, ok and 1.5 or 1.1)
+			haptics.click()
+		end
+		last_snap = k
 	else
 		session.set_preview(nil)
+		last_snap = nil
+	end
+end
+
+local function clear_hover()
+	session.hover_node = nil
+	session.hover_beam = nil
+end
+
+-- Delete the beam under a screen point; returns true when one was removed.
+local function erase_at(sx, sy)
+	local wx, wy = to_world(sx, sy)
+	local bm = session.blueprint:nearest_beam(wx, wy, tol_world())
+	if bm then return session.erase_beam(bm.id) end
+	return false
+end
+
+-- Desktop hover: what a click at this point would use (touch screens have no hover).
+local function update_hover(sx, sy)
+	if M.touch then return clear_hover() end
+	local wx, wy = to_world(sx, sy)
+	local bp = session.blueprint
+	if session.tool == "erase" then
+		local bm = bp:nearest_beam(wx, wy, tol_world())
+		session.hover_beam = bm and bm.id or nil
+		session.hover_node = nil
+	else
+		local n = bp:nearest_node(wx, wy, tol_world())
+		session.hover_node = n and n.id or nil
+		session.hover_beam = nil
 	end
 end
 
@@ -93,15 +138,21 @@ end
 function M.reset()
 	st = { mode = "idle" }
 	pinch = nil
+	right_held = false
+	last_snap = nil
 	session.set_preview(nil)
+	clear_hover()
 end
 
 -- ------------------------------------------------------------------ pointer
 local function press(sx, sy)
 	st = { mode = "idle", sx = sx, sy = sy, lx = sx, ly = sy, moved = false }
 	local wx, wy = to_world(sx, sy)
+	clear_hover()
+	last_snap = nil
 	if session.tool == "erase" then
-		st.mode = "erase_press"
+		-- a press on a beam deletes it at once and keeps erasing along the swipe; empty space pans
+		st.mode = erase_at(sx, sy) and "erase_drag" or "pan_press"
 		return
 	end
 	local node = session.blueprint:nearest_node(wx, wy, tol_world())
@@ -120,6 +171,12 @@ local function move(sx, sy)
 		-- desktop hover: ghost from the selected joint to the cursor
 		local sel = selected()
 		if sel and session.tool == "build" then show_preview(sel, sx, sy) end
+		update_hover(sx, sy)
+		return
+	end
+	if st.mode == "erase_drag" then
+		erase_at(sx, sy)
+		st.lx, st.ly = sx, sy
 		return
 	end
 	if not st.moved and dist(sx, sy, st.sx, st.sy) > tuning.DRAG_THRESHOLD_PX * M.px_scale then
@@ -179,14 +236,11 @@ local function release(sx, sy)
 				build_preview()
 			end
 		end
-	elseif mode == "erase_press" then
-		local wx, wy = to_world(sx, sy)
-		local bm = bp:nearest_beam(wx, wy, tol_world())
-		if bm then session.erase_beam(bm.id) end
 	elseif mode == "pan_press" then
 		session.selected_node = nil
 		session.set_preview(nil)
 	end
+	update_hover(sx, sy)
 end
 
 -- ------------------------------------------------------------------ pinch (two fingers)
@@ -232,10 +286,16 @@ function M.on_input(action_id, action)
 		return true
 	end
 	if action_id == MOUSE_RIGHT then
-		if action.pressed then
-			local wx, wy = to_world(action.screen_x, action.screen_y)
-			local bm = session.blueprint:nearest_beam(wx, wy, tol_world())
-			if bm then session.erase_beam(bm.id) end
+		-- held right button = eraser brush (Defold repeats the action every frame while it is held)
+		if action.released then
+			right_held = false
+		elseif action.pressed or right_held then
+			if action.pressed then
+				session.selected_node = nil
+				session.set_preview(nil)
+			end
+			right_held = true
+			erase_at(action.screen_x, action.screen_y)
 		end
 		return true
 	end

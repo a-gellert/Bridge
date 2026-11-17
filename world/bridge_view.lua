@@ -10,6 +10,8 @@ local beams = {}   -- blueprint beam id -> { go, mat }
 local nodes = {}   -- blueprint node id -> { go, anchor }
 local ghost = nil  -- { go, mat }
 local ring = nil
+local hover_ring = nil  -- joint under the mouse (desktop)
+local hover_beam = nil  -- beam id tinted red under the eraser
 local t = 0
 
 local DECK_OVERLAP = 0.12 -- decks are a bit longer so joints never show gaps
@@ -92,11 +94,38 @@ function M.update_build(dt, session)
 		spawn.delete(ring)
 		ring = nil
 	end
+
+	-- desktop hover: soft ring on the joint a click would grab
+	local hn = session.tool == "build" and not session.preview and session.hover_node
+	local hov = hn and hn ~= session.selected_node and session.blueprint.nodes[hn]
+	if hov then
+		if not hover_ring then hover_ring = spawn.create("select_ring", 0, 0, 1.55) end
+		local s = 0.8 + 0.05 * math.sin(t * 8)
+		spawn.set("select_ring", hover_ring, hov.x, hov.y, 1.55, 0, s, s, 1)
+		spawn.tint(hover_ring, 0.75, 0.95, 1, 1)
+	elseif hover_ring then
+		spawn.delete(hover_ring)
+		hover_ring = nil
+	end
+
+	-- eraser hover: the beam that would be deleted glows red
+	local hb = session.tool == "erase" and session.hover_beam or nil
+	if hb ~= hover_beam then
+		local old = hover_beam and beams[hover_beam]
+		if old then spawn.overlay(old.go, 1, 1, 1, 0) end
+		hover_beam = hb
+	end
+	local rec = hb and beams[hb]
+	if rec then spawn.overlay(rec.go, 1, 0.2, 0.15, 0.42 + 0.14 * math.sin(t * 12)) end
 end
 
 function M.clear_build_helpers()
 	if ghost then spawn.delete(ghost.go) ghost = nil end
 	if ring then spawn.delete(ring) ring = nil end
+	if hover_ring then spawn.delete(hover_ring) hover_ring = nil end
+	local old = hover_beam and beams[hover_beam]
+	if old then spawn.overlay(old.go, 1, 1, 1, 0) end
+	hover_beam = nil
 end
 
 -- ------------------------------------------------------------------ drive mode

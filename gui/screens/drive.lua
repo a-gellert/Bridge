@@ -128,7 +128,8 @@ function M.on_key(app, action_id, action)
 		apply()
 		return true
 	end
-	if (name == "reset" or name == "back") and action.pressed then
+	-- Space / Enter toggles like in the build screen: launch there, back to the bridge here
+	if (name == "reset" or name == "back" or name == "go") and action.pressed then
 		session.stop_drive()
 		return true
 	end
