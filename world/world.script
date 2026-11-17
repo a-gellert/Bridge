@@ -29,7 +29,7 @@ local function level_bounds(level)
 	return { x0, y0, x1, y1 }
 end
 
-local function fit_build(level, immediate)
+local function fit_build(level, immediate, duration)
 	local a = level.area or { level.start, -4, level.finish, 6 }
 	local x0, x1 = a[1] - 1.5, a[3] + 1.5
 	-- show a bit of both banks so the goal is readable
@@ -39,7 +39,7 @@ local function fit_build(level, immediate)
 		x0, x1 = c - min_w * 0.5, c + min_w * 0.5
 	end
 	camera.bounds = level_bounds(level)
-	camera.fit(x0, a[2] - 1, x1, a[4] + 1.5, immediate)
+	camera.fit(x0, a[2] - 1, x1, a[4] + 1.5, immediate, duration)
 end
 
 -- Decorative scene behind the main menu: the last played level with the player's own bridge
@@ -111,7 +111,12 @@ local function handle_event(self, e)
 		camera.set_speed_fov(0)
 		level_view.set_build_helpers(true)
 		bridge_view.sync(session.blueprint)
-		fit_build(session.level, false)
+		fit_build(session.level, false, 0.2)
+	elseif id == "result" then
+		if not d.won then
+			camera.set_speed_fov(0)
+			fit_build(session.level, false, 0.2)
+		end
 	elseif id == "beam_broken" then
 		fx.beam_break(d.x, d.y, d.mat)
 		local snd = (d.mat == "rope" or d.mat == "cable") and "snap" or ((d.mat == "steel" or d.mat == "steel_road") and "break_steel" or "break_wood")
@@ -240,8 +245,10 @@ function update(self, dt)
 		local vx, vy = run.vehicle:velocity()
 		local spd = run.vehicle:speed()
 		camera.bounds = nil
-		camera.follow(cx, cy, tuning.CAM_DRIVE_SPAN, math.max(-2, math.min(4, vx * 0.35)))
-		camera.set_speed_fov(math.min(1, spd / tuning.CAM_DRIVE_SPAN))
+		if state == "drive" or (session.result and session.result.won) then
+			camera.follow(cx, cy, tuning.CAM_DRIVE_SPAN, math.max(-2, math.min(4, vx * 0.35)))
+			camera.set_speed_fov(math.min(1, spd / tuning.CAM_DRIVE_SPAN))
+		end
 		-- structural creak: the player hears the bridge giving up before it snaps
 		local stress = run:stress()
 		if stress > 0.75 then

@@ -56,8 +56,9 @@ template/             poki_template.html — брендированная HTML5-
 render/               рендер: мир (перспектива) + полупрозрачные + GUI
 entities/             по одному .go на модель (их и заменяем)
 assets/               модели (.gltf/.glb), материалы/шейдеры, палитра, UI-атлас, шрифт, звуки,
-                      иконки магазинов (assets/icons)
+                      иконки магазинов (assets/icons); assets/vox — исходники .vox для MagicaVoxel
 tools/                gen_assets.js (процедурные ассеты), gen/icons.js (иконки),
+                      vox/ (вокселизация .vox <-> .gltf, превью),
                       blender/gen_models.py (hero-декор), preview*.js (превью)
 tests/                Node + fengari: физика, уровни, сессия, мета-слой, рантайм на моке Defold
 ```
@@ -76,6 +77,28 @@ tests/                Node + fengari: физика, уровни, сессия, 
 4. Цвета берутся из общей палитры `tools/gen/palette.js` (UV в одну точку нужного цвета). Меняйте палитру — перекрашивается весь мир; декор и рельеф дополнительно тонируются темой уровня (`game/config/themes.lua`).
 
 `node tools/gen_assets.js` перегенерирует модели, палитру, UI-иконки, звуки и фабрики, но **не трогает** существующие `entities/*.go` (ключ `--force` перезапишет их). Новые модели получают `.go` автоматически.
+
+## Воксельные модели (MagicaVoxel)
+
+Процедурные модели дополнительно живут как настоящие воксельные объёмы: исходник — `assets/vox/<id>.vox` (открывается в MagicaVoxel), рядом `<id>.json` хранит размер вокселя и смещение сетки в мировых координатах. `tools/vox/build.js` вокселизует модели из `tools/gen/models.js`; `node tools/gen_assets.js` и обычная сборка читают `.vox`, если он есть, и собирают `.gltf` с палитровыми UV — материал остаётся тем же (`voxel.material`), новых материалов нет.
+
+```powershell
+node tools/vox/build.js                  # все модели -> assets/vox/*.vox + assets/models/*.gltf
+node tools/vox/build.js --only=veh_car   # точечно, через запятую
+node tools/vox/build.js --preview        # + build/vox_previews/<id>.png (софт-рендер без движка)
+node tools/vox/build.js --magicavoxel    # + копия в D:\Programs\MagicaVoxel-0.99.7.1-win64\vox\bridgemad
+node tools/vox/build.js --cell-scale=1.3 # грубее воксель = меньше треугольников
+node tools/vox/contact_sheet.js          # общий лист build/vox_contact_sheet.png
+node tools/gen_assets.js --no-vox        # игнорировать .vox, вернуть процедурные модели
+```
+
+Правила пайплайна:
+
+- палитра `.vox` — это палитра игры по порядку (`tools/gen/palette.js`), поэтому правка цвета в палитре переносится на модели; при перестановке цветов перегенерируйте `.vox`;
+- сетка до 256³ (лимит MagicaVoxel), скрытые грани удаляются, соседние грани одного цвета сливаются (greedy meshing) — модель остаётся в 0,1–6k треугольников;
+- вокселизация идёт от `tools/gen/models.js`: правка формы в JS перезапишет `.vox`, правка `.vox` переживёт `gen_assets` и сборку;
+- динамические и растягиваемые модели (`terrain_*`, `water*`, `sky_band`, `zone`, `grid_dots`, `select_ring`, `shadow`, `portal_glow`) остаются процедурными: их тайлит и скейлит `world/level_view.lua`, воксельная сетка там исказилась бы;
+- Blender-декор (`tools/blender/gen_models.py`) не вокселизуется — он уже финальный `.glb`.
 
 ## Blender-модели и живое окружение
 

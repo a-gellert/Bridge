@@ -525,8 +525,16 @@ M.terrain_top = () => {
   return m;
 };
 
-M.wedge_up = () => new Mesh().prism([[-0.5, 0], [0.5, 0], [0.5, 1]], -0.5, 0.5, { cap: "base_lo", side: "base" });
-M.wedge_dn = () => new Mesh().prism([[-0.5, 0], [0.5, 0], [-0.5, 1]], -0.5, 0.5, { cap: "base_lo", side: "base" });
+// terrain wedges: sloped hypotenuse face omitted to prevent Z-fighting with cap_row's terrain_top
+M.wedge_up = () => new Mesh().prism([[-0.5, 0], [0.5, 0], [0.5, 1]], -0.5, 0.5, {
+  cap: "base_lo",
+  side: (a, b) => (a[0] !== b[0] && a[1] !== b[1] ? null : "base"),
+});
+M.wedge_dn = () => new Mesh().prism([[-0.5, 0], [0.5, 0], [-0.5, 1]], -0.5, 0.5, {
+  cap: "base_lo",
+  side: (a, b) => (a[0] !== b[0] && a[1] !== b[1] ? null : "base"),
+});
+M.spoiler = () => new Mesh().prism([[-0.5, 0], [0.5, 0], [0.5, 1]], -0.5, 0.5, { cap: "base_lo", side: "base" });
 
 M.block = () => new Mesh().bevelBox(0, 0, 0, 1, 1, 1, 0.07, {
   top: "base_hi", side: "base", front: "base_lo", back: "base", bottom: "base_dk", layer: "base_dk",

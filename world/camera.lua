@@ -55,8 +55,23 @@ local function inset_shift(vh)
 	return (M.insets.bottom - M.insets.top) * 0.5 * vh
 end
 
+function M.transition_to(tx, ty, tvh, duration)
+	duration = duration or 0.2
+	M.transition = {
+		from_x = M.cx,
+		from_y = M.cy,
+		from_vh = M.vh,
+		to_x = tx,
+		to_y = ty,
+		to_vh = tvh,
+		duration = duration,
+		elapsed = 0,
+	}
+	M.tx, M.ty, M.tvh = tx, ty, tvh
+end
+
 -- Frame a world rectangle inside the part of the screen not covered by the HUD.
-function M.fit(x0, y0, x1, y1, immediate)
+function M.fit(x0, y0, x1, y1, immediate, duration)
 	M.fit_rect = { x0, y0, x1, y1 }
 	local usable_h = M.h * max(0.2, 1 - M.insets.top - M.insets.bottom)
 	local usable_w = M.w * 0.94
@@ -65,12 +80,20 @@ function M.fit(x0, y0, x1, y1, immediate)
 	local cx = (x0 + x1) * 0.5
 	local cy = (y0 + y1) * 0.5 - inset_shift(vh)
 	M.tx, M.ty, M.tvh = cx, cy, vh
-	if immediate then M.cx, M.cy, M.vh = cx, cy, vh end
+	if immediate then
+		M.cx, M.cy, M.vh = cx, cy, vh
+		M.transition = nil
+	elseif duration and duration > 0 then
+		M.transition_to(cx, cy, vh, duration)
+	else
+		M.transition = nil
+	end
 end
 
 -- Follow a point (drive mode): keeps `span` meters of width visible.
 function M.follow(x, y, span, lead)
 	M.fit_rect = nil
+	M.transition = nil
 	local aspect = M.w / max(1, M.h)
 	local vh = clamp_view(max(span / aspect, span * 0.45))
 	M.tvh = vh
@@ -81,6 +104,7 @@ end
 -- Pan by a screen-space delta (pixels).
 function M.pan_px(dx, dy)
 	M.fit_rect = nil
+	M.transition = nil
 	local k = M.world_per_px()
 	M.cx, M.cy = clamp_center(M.cx - dx * k, M.cy - dy * k)
 	M.tx, M.ty = M.cx, M.cy
@@ -89,6 +113,7 @@ end
 -- Zoom keeping the world point under the screen point (sx, sy) fixed.
 function M.zoom_at(sx, sy, factor)
 	M.fit_rect = nil
+	M.transition = nil
 	local wx, wy = M.screen_to_world(sx, sy)
 	local nvh = clamp_view(M.vh * factor)
 	local k = nvh / M.vh
@@ -133,10 +158,23 @@ function M.compute()
 end
 
 function M.update(dt)
-	local k = 1 - math.exp(-M.follow_rate * dt)
-	M.cx = M.cx + (M.tx - M.cx) * k
-	M.cy = M.cy + (M.ty - M.cy) * k
-	M.vh = M.vh + (M.tvh - M.vh) * k
+	if M.transition then
+		M.transition.elapsed = M.transition.elapsed + dt
+		local p = math.min(1, M.transition.elapsed / math.max(1e-4, M.transition.duration))
+		local ease = 1 - (1 - p) * (1 - p) * (1 - p)
+		M.cx = M.transition.from_x + (M.transition.to_x - M.transition.from_x) * ease
+		M.cy = M.transition.from_y + (M.transition.to_y - M.transition.from_y) * ease
+		M.vh = M.transition.from_vh + (M.transition.to_vh - M.transition.from_vh) * ease
+		if p >= 1 then
+			M.cx, M.cy, M.vh = M.tx, M.ty, M.tvh
+			M.transition = nil
+		end
+	else
+		local k = 1 - math.exp(-M.follow_rate * dt)
+		M.cx = M.cx + (M.tx - M.cx) * k
+		M.cy = M.cy + (M.ty - M.cy) * k
+		M.vh = M.vh + (M.tvh - M.vh) * k
+	end
 	local fk = 1 - math.exp(-5 * dt)
 	M.fov_add = M.fov_add + (M.fov_target - M.fov_add) * fk
 	if M.shake_t > 0 then

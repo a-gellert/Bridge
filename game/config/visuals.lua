@@ -81,6 +81,7 @@ M.defs = {
 	crystal_cluster = { factory = "f_crystal_cluster" },
 	windmill = { factory = "f_windmill" },
 	windmill_blades = { factory = "f_windmill_blades" },
+	spoiler = { factory = "f_spoiler" },
 	bird = { factory = "f_bird" },
 	butterfly = { factory = "f_butterfly" },
 	lab_generator = { factory = "f_lab_generator", scale = 1.0 },

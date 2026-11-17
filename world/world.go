@@ -103,6 +103,11 @@ embedded_components {
   data: "prototype: \"/entities/wedge_dn.go\"\n"
 }
 embedded_components {
+  id: "f_spoiler"
+  type: "factory"
+  data: "prototype: \"/entities/spoiler.go\"\n"
+}
+embedded_components {
   id: "f_block"
   type: "factory"
   data: "prototype: \"/entities/block.go\"\n"

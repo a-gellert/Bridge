@@ -135,7 +135,9 @@ class Mesh {
       this.tri([cx, cy, z1], [a[0], a[1], z1], [b[0], b[1], z1], c.front || c.cap || c.side);
       this.tri([cx, cy, z0], [b[0], b[1], z0], [a[0], a[1], z0], c.back || c.cap || c.side);
       const sideColor = typeof c.side === "function" ? c.side(a, b) : (c.side || c.cap || c.front);
-      this.quad([a[0], a[1], z0], [b[0], b[1], z0], [b[0], b[1], z1], [a[0], a[1], z1], sideColor);
+      if (sideColor) {
+        this.quad([a[0], a[1], z0], [b[0], b[1], z0], [b[0], b[1], z1], [a[0], a[1], z1], sideColor);
+      }
     }
     return this;
   }
@@ -159,7 +161,9 @@ class Mesh {
       this.tri([cx, y1, cz], [b[0], y1, b[1]], [a[0], y1, a[1]], c.top || c.cap || c.side);
       this.tri([cx, y0, cz], [a[0], y0, a[1]], [b[0], y0, b[1]], c.bottom || c.cap || c.side);
       const sideColor = typeof c.side === "function" ? c.side(a, b) : (c.side || c.cap || c.top);
-      this.quad([a[0], y0, a[1]], [a[0], y1, a[1]], [b[0], y1, b[1]], [b[0], y0, b[1]], sideColor);
+      if (sideColor) {
+        this.quad([a[0], y0, a[1]], [a[0], y1, a[1]], [b[0], y1, b[1]], [b[0], y0, b[1]], sideColor);
+      }
     }
     return this;
   }

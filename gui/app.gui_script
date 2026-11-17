@@ -264,7 +264,14 @@ function update(self, dt)
 		local need_rebuild = false
 		local will_rebuild = false
 		for _, e in ipairs(evs) do
-			if e.id == "state" or e.id == "level_loaded" then will_rebuild = true end
+			if e.id == "result" and e.data == session.result and not e.data.won and not e.data.can_assist then
+				-- Fast edit after collapse: instant return to build mode (0.1s delay, 0.2s camera return)
+				session.stop_drive()
+				app.toast(i18n.t("reason_" .. tostring(e.data.reason)), ui.RED)
+				need_rebuild = true
+			elseif e.id == "state" or e.id == "level_loaded" then
+				will_rebuild = true
+			end
 		end
 		for _, e in ipairs(evs) do
 			if e.id == "state" or e.id == "level_loaded" then

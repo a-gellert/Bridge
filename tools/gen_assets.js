@@ -12,8 +12,10 @@
 //   assets/sounds/*.wav + main/sounds.go
 //   assets/fonts/main.font
 const path = require("path");
+const fs = require("fs");
 const palette = require("./gen/palette");
 const models = require("./gen/models");
+const vox = require("./vox/pipeline");
 const ui = require("./gen/ui");
 const sfx = require("./gen/sfx");
 const icons = require("./gen/icons");
@@ -22,14 +24,21 @@ const defold = require("./gen/defold");
 
 const ROOT = path.resolve(__dirname, "..");
 const force = process.argv.includes("--force");
+const noVox = process.argv.includes("--no-vox");
 
 palette.writeTexture(path.join(ROOT, "assets/textures/palette.png"));
 palette.writeJson(path.join(ROOT, "tools/gen/palette.json"));
 
 const jsIds = Object.keys(models).filter((id) => !blender.set.has(id));
 let tris = 0;
+let voxCount = 0;
 for (const id of jsIds) {
-  const info = models[id]().writeGltf(path.join(ROOT, "assets/models", id + ".gltf"), id);
+  // assets/vox/<id>.vox wins: the model is edited in MagicaVoxel, glTF is generated from it
+  const hasVox = !noVox && fs.existsSync(vox.voxPath(ROOT, id)) && fs.existsSync(vox.metaPath(ROOT, id));
+  const info = hasVox
+    ? vox.buildGltf(ROOT, id)
+    : models[id]().writeGltf(path.join(ROOT, "assets/models", id + ".gltf"), id);
+  if (hasVox) voxCount++;
   tris += info.tris;
 }
 const allIds = Array.from(new Set(Object.keys(models).concat(blender.ids)));
@@ -46,4 +55,4 @@ defold.sounds(ROOT, snd, sfx.LOOPING);
 
 defold.font(ROOT);
 
-console.log(`js models: ${jsIds.length} (${tris} triangles), blender models: ${blender.ids.length}, new entities: ${created}, ui images: ${images.length}, store icons: ${storeIcons.length}, sounds: ${snd.length}`);
+console.log(`js models: ${jsIds.length} (${tris} triangles, ${voxCount} from .vox), blender models: ${blender.ids.length}, new entities: ${created}, ui images: ${images.length}, store icons: ${storeIcons.length}, sounds: ${snd.length}`);

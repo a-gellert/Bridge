@@ -467,6 +467,8 @@ function M.build(level)
 		local body = add(gos, spawn.create("terrain_body", (x0 + x1) * 0.5, (lo + bottom) * 0.5, ZC, 0, x1 - x0, lo - bottom, DEPTH))
 		spawn.tint_rgb(body, theme.ground)
 		if math.abs(y1 - y0) > 0.01 then
+			-- the cliff wedge fills under the slope; its sloped face is omitted in the model
+			-- so it never Z-fights / flickers with the cap_row slab sitting on top.
 			local wid = y1 > y0 and "wedge_up" or "wedge_dn"
 			local wedge = add(gos, spawn.create(wid, (x0 + x1) * 0.5, lo, ZC, 0, x1 - x0, math.abs(y1 - y0), DEPTH))
 			spawn.tint_rgb(wedge, theme.ground)
@@ -477,15 +479,6 @@ function M.build(level)
 	for _, b in ipairs(level.blocks or {}) do
 		local blk = add(gos, spawn.create("block", (b[1] + b[3]) * 0.5, (b[2] + b[4]) * 0.5, ZC, 0, b[3] - b[1], b[4] - b[2], DEPTH))
 		spawn.tint_rgb(blk, theme.rock)
-		-- rocky teeth along the exposed underside: breaks up the giant flat slab
-		if b[3] - b[1] > 1.4 then
-			for x = b[1] + 0.45, b[3] - 0.35, 1.7 do
-				local s = 0.42 + rand() * 0.34
-				local id = rand() < 0.28 and "rock_big" or "rock_small"
-				local d = add(gos, spawn.create(id, x + rand() * 0.4, b[2] - 0.65 * s, 1.5, rand() * math.pi * 2, s, s * 1.1, s))
-				spawn.tint_rgb(d, theme.rock)
-			end
-		end
 	end
 
 	-- ---------------------------------------------------------- water
@@ -662,9 +655,14 @@ function M.build(level)
 	spawn_glints(view, gos, level, ex0, ex1, rand)
 
 	if theme.panels then
-		for x = ex0, ex1, 4.2 do
-			for y = -3, 12, 4.2 do
-				local p = add(gos, spawn.create("lab_panel", x, y, -9.0, 0, 2.7, 2.7, 1))
+		-- lab_panel is 2x2 model units and its faces are flat: tiles must meet with a
+		-- small gap, otherwise overlapping coplanar faces Z-fight and the wall shimmers.
+		local step = 4.2
+		local seam = 0.12
+		local s = (step - seam) * 0.5
+		for x = ex0, ex1, step do
+			for y = -3, 12, step do
+				local p = add(gos, spawn.create("lab_panel", x, y, -9.0, 0, s, s, 1))
 				local g = 0.9 + rand() * 0.1
 				spawn.tint(p, g, g, g * 1.02, 1)
 			end

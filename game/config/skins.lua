@@ -41,7 +41,7 @@ M.list = {
 			scale = { 0.3, 0.3, 0.3 }, pos = { 0.0, 0.78 }, tint = { 1.0, 0.84, 0.18 }, price = 160,
 		},
 		{
-			id = "spoiler", name = { en = "Spoiler", ru = "Спойлер" }, visual = "wedge_up",
+			id = "spoiler", name = { en = "Spoiler", ru = "Спойлер" }, visual = "spoiler",
 			scale = { 0.62, 0.22, 0.3 }, pos = { 0.42, 0.58 }, tint = { 0.18, 0.2, 0.28 }, price = 220,
 		},
 		{

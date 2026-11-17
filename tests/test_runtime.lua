@@ -8,6 +8,8 @@ local layout = require("gui.layout")
 local camera = require("world.camera")
 local session = require("game.core.session")
 local progress = require("game.core.progress")
+local levels = require("game.levels.levels")
+local i18n = require("game.core.i18n")
 
 local world = mock.load_script(ROOT .. "/world/world.script")
 local app = mock.load_script(ROOT .. "/gui/app.gui_script")
@@ -258,6 +260,55 @@ click_text("+25% BUDGET")
 frames(4)
 assert(session.state == "build", "assist returns to the bridge")
 assert(session.blueprint.budget == 563, "budget bonus applied: " .. tostring(session.blueprint.budget))
+
+-- 1. Single collapse: fast 0.1s return to build mode, blueprint preserved intact
+session.load_level(2)
+session.clear()
+session.try_build(0, 0, 2, 0) -- half-bridge into the void on level 2
+assert(session.blueprint:beam_count() == 1, "has one beam")
+session.start_drive("moto")
+for _ = 1, 600 do
+	frame()
+	if session.state == "build" then break end
+end
+assert(session.state == "build", "instantly back to build after collapse")
+assert(session.blueprint:beam_count() == 1, "blueprint preserved intact, not reset")
+assert(session.index == 2, "still on level 2")
+
+-- 2. Auto-transition to next level on 3 stars without manual click
+session.load_level(1)
+session.clear()
+local b1 = levels.get(1).solution[1]
+session.try_build(b1[2], b1[3], b1[4], b1[5])
+session.start_drive("truck")
+for _ = 1, 60 * 10 do
+	frame()
+	if session.index == 2 then break end
+end
+assert(session.index == 2, "seamlessly advanced to level 2 on 3 stars")
+
+-- 3. Biome milestone: completing level 8 offers to transition to a new setting
+session.load_level(8)
+session.clear()
+for _, b in ipairs(levels.get(8).solution) do
+	session.select_material(b[1])
+	session.try_build(b[2], b[3], b[4], b[5])
+end
+session.start_drive("truck")
+for _ = 1, 60 * 15 do
+	frame()
+	if session.state == "result" then break end
+end
+assert(session.state == "result", "level 8 completed")
+frames(10)
+assert(find_text("НОВЫЙ СЕТТИНГ!") or find_text("NEW SETTING!"), "biome switch prompt shown on level 8")
+local canyon_text = i18n.f("biome_offer_go", i18n.pick(levels.chapters[2].name))
+local canyon_btn = find_text(canyon_text)
+assert(canyon_btn, "next setting option button: " .. tostring(canyon_text))
+click_text(canyon_text)
+frames(5)
+assert(session.level.chapter_index == 2, "transitioned to Red Canyon biome")
+assert(session.level.id == "2-1", "first level of new setting loaded")
 
 -- HUD survives desktop, tablet and tall phone canvases
 for _, s in ipairs({ { 1920, 1080 }, { 1024, 768 }, { 1170, 2532 } }) do

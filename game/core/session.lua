@@ -282,6 +282,9 @@ local function make_result()
 		ratio = cost / math.max(1, M.blueprint.budget),
 		level_index = M.index,
 		level_id = M.level.id,
+		level_number = M.level.number,
+		chapter_index = M.level.chapter_index,
+		is_biome_milestone = won and (M.level.number == 8),
 		time = run.end_time or run.time,
 		broken = run.broken,
 		beams = M.blueprint:beam_count(),
@@ -339,7 +342,7 @@ function M.update(dt)
 	end
 	if run.status ~= Run.RUNNING then
 		finish_delay = finish_delay + dt
-		local wait = run.status == Run.WON and 1.1 or 1.3
+		local wait = run.status == Run.WON and 0.25 or 0.1
 		if finish_delay >= wait then
 			M.result = make_result()
 			set_state("result")

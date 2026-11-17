@@ -63,6 +63,11 @@ local STRINGS = {
 		assist_budget = "+25% BUDGET", assist_hint = "Show blueprint (ad)",
 		assist_offer = "Stuck? Get help and keep playing", budget_bonus = "+25% budget added!",
 		hint_pulse = "Hint is ready!",
+		auto_next = "NEXT LEVEL...",
+		biome_offer_title = "NEW SETTING!",
+		biome_offer_desc = "Explore the new setting: %s?",
+		biome_offer_go = "VISIT %s",
+		biome_offer_stay = "CONTINUE (%s)",
 		-- achievements
 		ach_first_bridge = "First Engineer", ach_first_bridge_d = "Build your first beam.",
 		ach_engineer = "Bridge Builder", ach_engineer_d = "Have 10 beams in one design.",
@@ -141,6 +146,11 @@ local STRINGS = {
 		assist_budget = "+25% БЮДЖЕТА", assist_hint = "Показать чертёж (реклама)",
 		assist_offer = "Застряли? Возьмите помощь и играйте дальше", budget_bonus = "Бюджет увеличен на 25%!",
 		hint_pulse = "Подсказка доступна!",
+		auto_next = "СЛЕДУЮЩИЙ УРОВЕНЬ...",
+		biome_offer_title = "НОВЫЙ СЕТТИНГ!",
+		biome_offer_desc = "Хотите перейти в сеттинг «%s»?",
+		biome_offer_go = "В «%s»",
+		biome_offer_stay = "ПРОДОЛЖИТЬ (%s)",
 		-- achievements
 		ach_first_bridge = "Первый инженер", ach_first_bridge_d = "Постройте первую балку.",
 		ach_engineer = "Мостостроитель", ach_engineer_d = "Соберите 10 балок в одном чертеже.",
