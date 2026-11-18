@@ -43,6 +43,8 @@ M.defs = {
 	water_top = { factory = "f_water_top", alpha = true },
 	water_wave = { factory = "f_water_wave", alpha = true },
 	sky_band = { factory = "f_sky_band" },
+	bg_sky = { factory = "f_bg_sky" },
+	bg_mountains = { factory = "f_bg_mountains", alpha = true },
 	-- level props
 	flag_finish = { factory = "f_flag_finish" },
 	flag_start = { factory = "f_flag_start" },

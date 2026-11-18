@@ -57,9 +57,17 @@ assert(session.blueprint:beam_count() == 1, "design restored")
 
 -- hint loads the reference design, undo reverts it
 assert(session.load_level(2))
+-- onboarding plan: the first three levels show a translucent reference bridge until solved
+assert(levels.get(1).guide and levels.get(2).guide and levels.get(3).guide, "guide plan on levels 1-3")
+assert(not levels.get(4).guide, "guide plan only on the first levels")
+assert(session.guide, "guide plan is on by default before the first star")
+assert(session.set_guide(false) and not session.guide, "plan can be hidden")
+assert(session.set_guide(true) and session.guide, "plan can be shown again")
 session.clear()
+assert(not session.guide_done(), "empty design is not plan-complete")
 assert(session.apply_hint())
 assert(session.blueprint:beam_count() == #levels.get(2).solution)
+assert(session.guide_done(), "reference bridge counts as plan-complete")
 assert(session.undo())
 assert(session.blueprint:beam_count() == 0)
 

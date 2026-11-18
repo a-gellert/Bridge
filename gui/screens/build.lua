@@ -32,12 +32,22 @@ function M.refresh(app)
 	ui.set_bar(h.budget_bar, cost / budget, budget_color(cost / budget))
 	for id, b in pairs(h.mats) do
 		local sel = session.tool == "build" and session.material == id
-		gui.set_color(b.node, sel and ui.YELLOW or ui.PANEL_LT)
+		gui.set_color(b.node, sel and ui.BTN_SEL_MAT or ui.BTN_LIGHT)
 		gui.set_enabled(b.sel, sel)
 	end
-	if h.erase then gui.set_color(h.erase, session.tool == "erase" and ui.RED or ui.PANEL_LT) end
-	for id, node in pairs(h.vehs) do
-		gui.set_color(node, session.vehicle == id and ui.BLUE or ui.PANEL_LT)
+	if h.erase then
+		local sel = session.tool == "erase"
+		gui.set_color(h.erase, sel and ui.BTN_SEL_ERA or ui.BTN_LIGHT)
+		if h.erase_sel then gui.set_enabled(h.erase_sel, sel) end
+	end
+	if h.guide_btn then
+		gui.set_color(h.guide_btn, session.guide and ui.CYAN or ui.BTN_LIGHT)
+		if h.guide_txt then gui.set_color(h.guide_txt, session.guide and ui.WHITE or ui.INK) end
+	end
+	for id, b in pairs(h.vehs) do
+		local sel = session.vehicle == id
+		gui.set_color(b.node, sel and ui.BTN_SEL_VEH or ui.BTN_LIGHT)
+		if b.sel then gui.set_enabled(b.sel, sel) end
 	end
 	if h.undo_btn then h.undo_btn:set_enabled(bp:can_undo()) end
 end
@@ -56,12 +66,12 @@ end
 
 -- material button
 local function mat_button(app, parent, x, y, w, bh, m)
-	local node = ui.box(parent, "btn", x, y, w, bh, ui.PANEL_LT)
+	local sel = ui.panel(parent, x, y, w + 4, bh + 4, ui.YELLOW, 18)
+	local node = ui.box(parent, "btn", x, y, w, bh, ui.BTN_LIGHT)
 	gui.set_slice9(node, vmath.vector4(16, 16, 16, 24))
-	local sel = ui.panel(node, 0, 0, w + 8, bh + 8, ui.hex("#FFFFFF", 0.0), 20)
 	local ic = ui.box(node, m.icon, 0, bh * 0.16, math.min(w - 12, 84), math.min(w - 12, 84) * 0.66)
-	ui.label(node, "$" .. m.cost, 0, -bh * 0.2, 24, ui.WHITE, w - 8)
-	ui.label(node, m.max_len .. "m", 0, -bh * 0.38, 18, ui.DIM, w - 8)
+	ui.label(node, "$" .. m.cost, 0, -bh * 0.2, 24, ui.INK, w - 8)
+	ui.label(node, m.max_len .. "m", 0, -bh * 0.38, 18, ui.SLATE_LT, w - 8)
 	if m.unlock == session.index then
 		local badge = ui.panel(node, w / 2 - 14, bh / 2 - 8, 56, 26, ui.RED, 12)
 		ui.text(badge, "NEW", 0, 1, 18, ui.WHITE)
@@ -77,7 +87,8 @@ local function mat_button(app, parent, x, y, w, bh, m)
 end
 
 local function veh_button(app, parent, x, y, w, bh, v)
-	local node = ui.box(parent, "btn", x, y, w, bh, ui.PANEL_LT)
+	local sel = ui.panel(parent, x, y, w + 4, bh + 4, ui.BLUE, 18)
+	local node = ui.box(parent, "btn", x, y, w, bh, ui.BTN_LIGHT)
 	gui.set_slice9(node, vmath.vector4(16, 16, 16, 24))
 	ui.icon(node, v.icon, 0, bh * 0.14, math.min(w, bh) * 0.56)
 	for i = 1, 3 do
@@ -87,7 +98,8 @@ local function veh_button(app, parent, x, y, w, bh, v)
 		session.select_vehicle(v.id)
 		M.refresh(app)
 	end)
-	h.vehs[v.id] = node
+	h.vehs[v.id] = { node = node, sel = sel }
+	gui.set_enabled(sel, false)
 	return node
 end
 
@@ -202,12 +214,15 @@ function M.build(app, root)
 		mat_button(app, root, mx0 + mb_w / 2 + (i - 1) * (mb_w + 8), mat_row_y, mb_w, mb_h, mat)
 	end
 	local ex = mx0 + mb_w / 2 + #mats * (mb_w + 8)
-	local enode = ui.box(root, "btn", ex, mat_row_y, mb_w, mb_h, ui.PANEL_LT)
+	local esel = ui.panel(root, ex, mat_row_y, mb_w + 4, mb_h + 4, ui.RED, 18)
+	local enode = ui.box(root, "btn", ex, mat_row_y, mb_w, mb_h, ui.BTN_LIGHT)
 	gui.set_slice9(enode, vmath.vector4(16, 16, 16, 24))
 	ui.icon(enode, "eraser", 0, 10, math.min(56, mb_w - 20))
-	ui.label(enode, i18n.t("erase"), 0, -mb_h * 0.34, 18, ui.WHITE, mb_w - 8)
+	ui.label(enode, i18n.t("erase"), 0, -mb_h * 0.34, 18, ui.INK, mb_w - 8)
 	ui.button(enode, function() toggle_erase(app) end)
 	h.erase = enode
+	h.erase_sel = esel
+	gui.set_enabled(esel, false)
 
 	-- HUD covers the screen top/bottom: tell the camera so the bridge stays in the free area
 	camera.set_insets((top_h + mt + 6) / vh, (bottom_h + mb + 6) / vh)
@@ -216,7 +231,17 @@ function M.build(app, root)
 	ui.round(root, ml + 42, mb + bottom_h + 50, 62, "fit", function()
 		local a = session.level.area or { session.level.start, -4, session.level.finish, 6 }
 		camera.fit(a[1] - 1.5, a[2] - 1, a[3] + 1.5, a[4] + 1.5, false)
-	end, { color = ui.PANEL, icon_size = 30 })
+	end, { icon_size = 32 })
+
+	-- onboarding: toggle the translucent reference plan
+	if session.has_guide() then
+		local gb, _, gt = ui.btn(root, ml + 42 + 108, mb + bottom_h + 50, 112, 62, i18n.t("plan"), function()
+			session.set_guide(not session.guide)
+			app.toast(i18n.t(session.guide and "plan_on" or "plan_off"), session.guide and ui.CYAN or ui.DIM)
+			M.refresh(app)
+		end, { color = session.guide and ui.CYAN or ui.PANEL_LT, text_color = session.guide and ui.INK or ui.WHITE, size = 24 })
+		h.guide_btn, h.guide_txt = gb, gt
+	end
 
 	-- ghost info label (length / price / error), positioned every frame
 	h.info = ui.panel(root, 0, 0, 220, 50, ui.hex("#151926", 0.85), 20)
@@ -230,6 +255,9 @@ function M.build(app, root)
 	if not tip_text and #new > 0 then tip_text = i18n.f("new_material", i18n.t(new[1].name_key)) end
 	if session.index == 1 and not progress.get("tutorial_done") then
 		tip_text = i18n.t("tip_first") .. "\n" .. i18n.t("tip_build_" .. (app.touch and "touch" or "pc"))
+	elseif session.guide then
+		local plan_hint = i18n.t("tip_plan")
+		tip_text = tip_text and (tip_text .. "  " .. plan_hint) or plan_hint
 	end
 	if tip_text and not app.tip_shown[lvl.id] then
 		app.tip_shown[lvl.id] = true
@@ -337,6 +365,9 @@ function M.on_event(app, e)
 		haptics.build()
 		if session.index == 1 and not progress.get("tutorial_done") then progress.set_setting("tutorial_done", true) end
 		app.tutorial_touched = true
+		if session.guide and session.guide_done() then
+			app.toast(i18n.t("plan_done"), ui.CYAN)
+		end
 	elseif id == "erased" then
 		audio.play("erase", 0.6)
 		haptics.click()

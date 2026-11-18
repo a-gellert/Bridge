@@ -41,7 +41,8 @@ for (const id of jsIds) {
   if (hasVox) voxCount++;
   tris += info.tris;
 }
-const allIds = Array.from(new Set(Object.keys(models).concat(blender.ids)));
+const extraIds = ["bg_sky", "bg_mountains"];
+const allIds = Array.from(new Set(Object.keys(models).concat(blender.ids).concat(extraIds)));
 const created = defold.entities(ROOT, allIds, force, blender.set);
 defold.factories(ROOT, allIds);
 

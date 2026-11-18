@@ -3,8 +3,8 @@ const fs = require("fs");
 const path = require("path");
 
 // Models drawn in the translucent pass (material voxel_alpha, predicate model_alpha)
-const ALPHA_MODELS = new Set(["water", "water_top", "water_wave", "grid_dots", "zone", "portal_glow", "shadow"]);
-const SKY_MODELS = new Set(["sky_band"]);
+const ALPHA_MODELS = new Set(["water", "water_top", "water_wave", "grid_dots", "zone", "portal_glow", "shadow", "bg_mountains"]);
+const SKY_MODELS = new Set(["sky_band", "bg_sky"]);
 
 function write(root, rel, text, { keep = false } = {}) {
   const file = path.join(root, rel);

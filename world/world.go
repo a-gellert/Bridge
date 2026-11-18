@@ -342,3 +342,13 @@ embedded_components {
   type: "factory"
   data: "prototype: \"/entities/lantern_post.go\"\n"
 }
+embedded_components {
+  id: "f_bg_sky"
+  type: "factory"
+  data: "prototype: \"/entities/bg_sky.go\"\n"
+}
+embedded_components {
+  id: "f_bg_mountains"
+  type: "factory"
+  data: "prototype: \"/entities/bg_mountains.go\"\n"
+}

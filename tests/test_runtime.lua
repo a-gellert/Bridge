@@ -109,12 +109,19 @@ frames(3)
 assert(session.state == "build" and session.index == 1, "first start should open level 1, state=" .. session.state)
 assert(find_text("ПУСК!"), "build HUD with GO button")
 assert(count_objects() > 20, "level visuals spawned")
+-- onboarding: translucent reference plan with a toggle
+assert(find_text("ПЛАН"), "onboarding plan toggle")
+click_text("ПЛАН")
+assert(not session.guide, "plan toggle hides the ghost")
+click_text("ПЛАН")
+assert(session.guide, "plan toggle shows the ghost again")
 
 -- build the road by dragging from the left anchor to the right one
 local ax, ay = world_screen(0, 0)
 local bx, by = world_screen(3, 0)
 drag_screen(ax, ay, bx, by)
 assert(session.blueprint:beam_count() == 1, "drag builds one beam, got " .. session.blueprint:beam_count())
+assert(session.guide_has_beam(session.level.solution[1]), "built beam matches the plan")
 
 -- launch the truck (default vehicle) with the GO button
 click_text("ПУСК!")

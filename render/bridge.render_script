@@ -35,7 +35,8 @@ function update(self)
 	local frustum = self.proj * self.view
 	render.disable_state(graphics.STATE_DEPTH_TEST)
 	render.disable_state(graphics.STATE_CULL_FACE)
-	render.disable_state(graphics.STATE_BLEND)
+	render.enable_state(graphics.STATE_BLEND)
+	render.set_blend_func(graphics.BLEND_FACTOR_SRC_ALPHA, graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
 	render.draw(self.pred_sky, { frustum = frustum })
 
 	-- 3D world

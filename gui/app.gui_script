@@ -157,12 +157,12 @@ function app.set_paused(on)
 	app.paused = on and true or false
 	if on then
 		session.set_paused(true)
-		if session.state == "drive" then poki.gameplay_stop() end
+		if session.state == "build" or session.state == "drive" then poki.gameplay_stop() end
 		app.build_pause_overlay()
 	else
 		app.clear_pause_overlay()
 		session.set_paused(false)
-		if session.state == "drive" then poki.gameplay_start() end
+		if session.state == "build" or session.state == "drive" then poki.gameplay_start() end
 	end
 end
 
@@ -347,6 +347,12 @@ end
 
 function on_input(self, action_id, action)
 	if poki.is_ad_active() then return true end
+	-- Poki lifecycle: gameplay starts on the player's first deliberate input in a level, not on
+	-- level load and not only on ПУСК — building is gameplay too. gameplay_start() is idempotent,
+	-- so further taps do not emit extra SDK calls.
+	if action.pressed and (session.state == "build" or session.state == "drive") then
+		poki.gameplay_start()
+	end
 	-- the pause overlay takes exactly one deliberate input
 	if app.paused then
 		if action.pressed then app.set_paused(false) end

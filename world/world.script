@@ -15,6 +15,7 @@ local themes = require("game.config.themes")
 local camera = require("world.camera")
 local level_view = require("world.level_view")
 local bridge_view = require("world.bridge_view")
+local guide_view = require("world.guide_view")
 local vehicle_view = require("world.vehicle_view")
 local fx = require("world.fx")
 
@@ -57,6 +58,7 @@ local function show_menu_scene(self)
 	bp:load(design or {})
 	bridge_view.destroy()
 	bridge_view.sync(bp)
+	guide_view.clear()
 	vehicle_view.destroy()
 	fx.clear()
 	fit_build(level, true)
@@ -69,9 +71,11 @@ local function on_level_loaded(self)
 	fx.clear()
 	vehicle_view.destroy()
 	bridge_view.destroy()
+	guide_view.clear()
 	level_view.build(level)
 	level_view.set_build_helpers(true)
 	bridge_view.sync(session.blueprint)
+	guide_view.sync(session)
 	fit_build(level, true)
 end
 
@@ -88,9 +92,11 @@ local function handle_event(self, e)
 		on_level_loaded(self)
 	elseif id == "design_changed" or id == "hint" then
 		if session.blueprint then bridge_view.sync(session.blueprint) end
+		guide_view.sync(session)
 	elseif id == "drive_started" then
 		level_view.set_build_helpers(false)
 		bridge_view.clear_build_helpers()
+		guide_view.clear()
 		vehicle_view.create(session.run)
 		poki.gameplay_start()
 		poki.level_start(session.level and session.level.id)
@@ -111,6 +117,7 @@ local function handle_event(self, e)
 		camera.set_speed_fov(0)
 		level_view.set_build_helpers(true)
 		bridge_view.sync(session.blueprint)
+		guide_view.sync(session)
 		fit_build(session.level, false, 0.2)
 	elseif id == "result" then
 		if not d.won then
@@ -237,6 +244,7 @@ function update(self, dt)
 	if state == "build" then
 		camera.set_speed_fov(0)
 		bridge_view.update_build(dt, session)
+		guide_view.update(dt)
 	elseif (state == "drive" or state == "result") and session.run then
 		local run = session.run
 		bridge_view.update_drive(dt, run)

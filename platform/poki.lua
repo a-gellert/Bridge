@@ -36,6 +36,9 @@ function M.is_busy()
 end
 
 -- Tell Poki that the game is playable (loaded). Safe without the SDK.
+-- extension-poki-sdk does not expose game_loading_finished in Lua (the HTML shell's
+-- PokiSDK.gameLoadingFinished at 100% owns that measure), so this is a no-op bridge kept
+-- for other SDK integrations — do not rely on it on the web.
 function M.loading_finished()
 	local s = sdk()
 	if s and s.game_loading_finished then pcall(s.game_loading_finished) end

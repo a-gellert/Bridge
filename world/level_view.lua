@@ -337,7 +337,7 @@ function M.build(level)
 
 	msg.post("@render:", "clear_color", { color = vmath.vector4(theme.sky[1], theme.sky[2], theme.sky[3], 1) })
 
-	-- ---------------------------------------------------------- sky gradient & celestial body
+	-- ---------------------------------------------------------- sky & background mountains
 	local sky_top = theme.sky_top or mix(theme.sky, { 0, 0, 0 }, 0.35)
 	local bands = 32
 	local y_lo, y_hi = kill - 30, 115
@@ -371,29 +371,36 @@ function M.build(level)
 		spawn.tint(core, 1.0, 1.0, 1.0, 0.85)
 	end
 
-	-- ---------------------------------------------------------- background mountains (aerial perspective)
-	local far = mix(theme.far, theme.sky, 0.68)
-	local mid = mix(theme.far, theme.sky, 0.44)
-	local near = mix(theme.far, theme.sky, 0.32)
-	local spans = ex1 - ex0 + 180
-	-- three separate layers of ridges: the lightest and tallest sits farthest back
-	for i = 0, 8 do
-		local x = ex0 - 80 + spans * (i + rand() * 0.7) / 9
-		local s = 13 + rand() * 11
-		local m = add(gos, spawn.create("mountain", x, kill - 8 + rand() * 2, -136 - rand() * 10, 0, s * 2.6, s, s * 1.25))
-		spawn.tint_rgb(m, far)
-	end
-	for i = 0, 5 do
-		local x = ex0 - 55 + (ex1 - ex0 + 110) * (i + rand() * 0.8) / 6
-		local s = 7 + rand() * 5
-		local m = add(gos, spawn.create("mountain", x, kill - 7 + rand() * 1.5, -96 - rand() * 14, 0, s * 2.7, s, s * 1.2))
-		spawn.tint_rgb(m, mid)
-	end
-	for i = 0, 4 do
-		local x = ex0 - 30 + (ex1 - ex0 + 60) * (i + rand() * 0.8) / 5
-		local s = 2.6 + rand() * 2.6
-		local m = add(gos, spawn.create("mountain", x, kill - 5 + rand() * 1.2, -68 - rand() * 10, 0, s * 2.9, s, s * 1.15))
-		spawn.tint_rgb(m, near)
+	if theme.parallax_bg then
+		-- Two Dots minimalist mountains panorama (Z=-112) over the clean procedural sky
+		local mnt_w, mnt_h = 260, 130
+		local mnt_obj = add(gos, spawn.create("bg_mountains", (ex0 + ex1) * 0.5, kill + 8, -112, 0, mnt_w, mnt_h, 1))
+		spawn.tint(mnt_obj, 1, 1, 1, 1)
+	else
+		-- ---------------------------------------------------------- background mountains (aerial perspective)
+		local far = mix(theme.far, theme.sky, 0.68)
+		local mid = mix(theme.far, theme.sky, 0.44)
+		local near = mix(theme.far, theme.sky, 0.32)
+		local spans = ex1 - ex0 + 180
+		-- three separate layers of ridges: the lightest and tallest sits farthest back
+		for i = 0, 8 do
+			local x = ex0 - 80 + spans * (i + rand() * 0.7) / 9
+			local s = 13 + rand() * 11
+			local m = add(gos, spawn.create("mountain", x, kill - 8 + rand() * 2, -136 - rand() * 10, 0, s * 2.6, s, s * 1.25))
+			spawn.tint_rgb(m, far)
+		end
+		for i = 0, 5 do
+			local x = ex0 - 55 + (ex1 - ex0 + 110) * (i + rand() * 0.8) / 6
+			local s = 7 + rand() * 5
+			local m = add(gos, spawn.create("mountain", x, kill - 7 + rand() * 1.5, -96 - rand() * 14, 0, s * 2.7, s, s * 1.2))
+			spawn.tint_rgb(m, mid)
+		end
+		for i = 0, 4 do
+			local x = ex0 - 30 + (ex1 - ex0 + 60) * (i + rand() * 0.8) / 5
+			local s = 2.6 + rand() * 2.6
+			local m = add(gos, spawn.create("mountain", x, kill - 5 + rand() * 1.2, -68 - rand() * 10, 0, s * 2.9, s, s * 1.15))
+			spawn.tint_rgb(m, near)
+		end
 	end
 
 	-- ---------------------------------------------------------- clouds: fast continuous flight across the sky

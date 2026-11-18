@@ -37,7 +37,9 @@ if drive > 0 then
 	session.start_drive(env("VEH", "truck"))
 	for _ = 1, math.floor(drive * 60) do frame() end
 else
-	session.apply_hint()
+	-- HINT=0 shows the onboarding ghost plan instead of loading the reference bridge
+	if env("HINT", "1") == "1" then session.apply_hint() end
+	if env("GUIDE", "0") == "1" then session.set_guide(true) end
 	session.selected_node = nil
 	for _ = 1, 40 do frame() end
 end

@@ -37,6 +37,7 @@ M.result = nil
 M.input = { gas = false, brake = false }
 M.paused = false
 M.hint_used = false
+M.guide = false          -- translucent reference "plan" on the onboarding levels
 M.budget_bonus = false
 
 local finish_delay = 0
@@ -95,6 +96,9 @@ function M.load_level(index)
 	M.paused = false
 	M.hint_used = false
 	M.budget_bonus = false
+	-- Onboarding levels show the reference bridge as a translucent plan until the
+	-- player earns a star there (the toggle stays available for replays).
+	M.guide = (lvl.guide and lvl.solution ~= nil and progress.stars(lvl.id) == 0) and true or false
 	-- keep the chosen material if this level has it, else the first one
 	if not M.blueprint.allowed[M.material] then M.material = lvl.materials[1] end
 	progress.record_attempt(lvl)
@@ -209,6 +213,37 @@ function M.clear()
 		return true
 	end
 	return false
+end
+
+-- ------------------------------------------------------------------ onboarding plan
+-- The tutorial levels can point at the reference solution with a translucent overlay.
+function M.has_guide()
+	return M.level and M.level.guide and M.level.solution ~= nil and true or false
+end
+
+function M.set_guide(on)
+	if not M.has_guide() then return false end
+	M.guide = on and true or false
+	events.emit("design_changed", {})
+	return true
+end
+
+-- True when the player's design already has a beam with the same endpoints (any material).
+function M.guide_has_beam(s)
+	local bp = M.blueprint
+	if not bp or not s then return false end
+	local a, b = bp:node_at(s[2], s[3]), bp:node_at(s[4], s[5])
+	return (a and b and bp:beam_between(a.id, b.id)) and true or false
+end
+
+-- True when every beam of the reference solution is already in the design.
+function M.guide_done()
+	local sol = M.level and M.level.solution
+	if not sol or #sol == 0 then return false end
+	for _, s in ipairs(sol) do
+		if not M.guide_has_beam(s) then return false end
+	end
+	return true
 end
 
 -- Replace the design with the level's reference solution (rewarded hint).

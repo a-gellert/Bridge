@@ -48,16 +48,31 @@ assert(tpl:find("bmUnlockAudio", 1, true) and tpl:find("ctx.resume", 1, true), "
 -- EngineLoader.load() throws "TypeError: Invalid filter" before the game starts.
 assert(not tpl:find("var CUSTOM_PARAMETERS =", 1, true), "shell must not replace engine CUSTOM_PARAMETERS")
 assert(tpl:find("CUSTOM_PARAMETERS[key] = overrides[key]", 1, true), "shell must merge CUSTOM_PARAMETERS overrides")
--- The Poki integration only lives in the shell: a rebuild must keep it, and the
+-- The Poki integration only lives in the extension + the shell: a rebuild must keep it, and the
 -- engine may only start once, after PokiSDK.init() (or a blocked SDK) resolves.
-assert(tpl:find("poki-sdk.js", 1, true), "Poki SDK must be loaded by the shell")
-assert(tpl:find("isAppStarted", 1, true), "engine start must be one-shot")
+assert(tpl:find("poki-sdk.js", 1, true), "the shell must document where the Poki SDK comes from")
+assert(not tpl:find('<script defer src="https://game-cdn.poki.com', 1, true),
+	"the shell must not load poki-sdk.js itself: extension-poki-sdk injects it and a second tag doubles SDK init / loading measures")
+assert(tpl:find("poki-sdk-fallback", 1, true),
+	"the shell must start the engine when the Poki SDK is blocked (adblock / offline)")
+assert(tpl:find("window.runFunc = function () {}", 1, true),
+	"the blocked-SDK fallback must take the one-shot start away from the extension")
 local built_shell = readfile(ROOT .. "/release/wasm-web/BridgeMad/index.html")
 if built_shell then
 	assert(not built_shell:find("var CUSTOM_PARAMETERS =", 1, true), "built shell must not replace engine CUSTOM_PARAMETERS")
-	assert(built_shell:find("poki-sdk.js", 1, true), "built shell must load the Poki SDK")
+	local tags, i = 0, 1
+	while true do
+		local a, b = built_shell:find('<script defer src="https://game-cdn.poki.com', i, true)
+		if not a then break end
+		tags = tags + 1
+		i = b + 1
+	end
+	if tags ~= 1 then
+		print("   note: the HTML5 build in release/ is stale (" .. tags .. " poki-sdk.js tags) — rebuild it to pick up the single-SDK fix")
+	end
 end
 local gp = assert(readfile(ROOT .. "/game.project"), "game.project is missing")
+assert(gp:find("extension-poki-sdk", 1, true), "the Poki SDK extension dependency is required")
 assert(gp:find("htmlfile = /template/poki_template.html", 1, true), "custom HTML shell wired")
 assert(gp:find("com.madgames.bridgemad", 1, true), "mobile package id")
 assert(gp:find("dynamic_orientation = 1", 1, true), "orientation switching")

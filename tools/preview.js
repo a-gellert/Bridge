@@ -11,8 +11,24 @@ const scene = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const OUT = process.argv[3] || "preview.png";
 const W = scene.w > 1400 ? Math.round(scene.w / 2) : scene.w;
 const H = scene.w > 1400 ? Math.round(scene.h / 2) : scene.h;
-const ALPHA = new Set(["water", "water_top", "water_wave", "grid_dots", "zone", "portal_glow", "shadow"]);
-const UNLIT = new Set(["sky_band"]);
+const ALPHA = new Set(["water", "water_top", "water_wave", "grid_dots", "zone", "portal_glow", "shadow", "bg_mountains"]);
+const UNLIT = new Set(["sky_band", "bg_sky"]);
+
+const TEXTURES = {
+  bg_sky: path.join(ROOT, "assets/images/backgrounds/bg_parallax_1_sky.png"),
+  bg_mountains: path.join(ROOT, "assets/images/backgrounds/bg_parallax_2_mountains.png"),
+};
+const texCache = {};
+function getTexture(m) {
+  if (texCache[m] !== undefined) return texCache[m];
+  if (!TEXTURES[m] || !fs.existsSync(TEXTURES[m])) return (texCache[m] = null);
+  try {
+    return (texCache[m] = png.decode(TEXTURES[m]));
+  } catch (e) {
+    console.error("Failed to decode texture", TEXTURES[m], e);
+    return (texCache[m] = null);
+  }
+}
 
 const NAMES = Object.keys(COLORS);
 const RGB = NAMES.map((n) => png.hex(COLORS[n]).map((v) => v / 255));
@@ -48,7 +64,7 @@ function mesh(name) {
     const c = Math.floor(uv[i * 2] * 16), r = Math.floor(uv[i * 2 + 1] * 16);
     col.push(RGB[r * 16 + c] || [1, 0, 1]);
   }
-  return (meshCache[name] = { pos, nrm, idx, col });
+  return (meshCache[name] = { pos, nrm, uv, idx, col });
 }
 
 const mul4 = (m, v) => [0, 1, 2, 3].map((r) => m[r * 4] * v[0] + m[r * 4 + 1] * v[1] + m[r * 4 + 2] * v[2] + m[r * 4 + 3] * v[3]);
@@ -66,6 +82,7 @@ const L = (() => { const l = [0.45, 0.8, 0.55], n = Math.hypot(...l); return l.m
 
 function drawObject(o, alpha) {
   const m = mesh(o.m);
+  const tex = getTexture(o.m);
   const vp = (p) => mul4(scene.proj, mul4(scene.view, [p[0], p[1], p[2], 1]));
   const n = m.pos.length / 3;
   const sp = new Array(n), wn = new Array(n);
@@ -73,17 +90,18 @@ function drawObject(o, alpha) {
     const lp = [m.pos[i * 3] * o.s[0], m.pos[i * 3 + 1] * o.s[1], m.pos[i * 3 + 2] * o.s[2]];
     const r = rotq(o.q, lp);
     const c = vp([r[0] + o.p[0], r[1] + o.p[1], r[2] + o.p[2]]);
-    sp[i] = c[3] > 0.01 ? [((c[0] / c[3]) * 0.5 + 0.5) * W, (1 - ((c[1] / c[3]) * 0.5 + 0.5)) * H, c[2] / c[3]] : null;
+    sp[i] = c[3] > 0.01 ? [((c[0] / c[3]) * 0.5 + 0.5) * W, (1 - ((c[1] / c[3]) * 0.5 + 0.5)) * H, c[2] / c[3], 1.0 / c[3]] : null;
     const nn = rotq(o.q, [m.nrm[i * 3] / o.s[0], m.nrm[i * 3 + 1] / o.s[1], m.nrm[i * 3 + 2] / o.s[2]]);
     const l = Math.hypot(...nn) || 1;
     wn[i] = nn.map((v) => v / l);
   }
   for (let t = 0; t < m.idx.length; t += 3) {
-    const a = sp[m.idx[t]], b = sp[m.idx[t + 1]], c = sp[m.idx[t + 2]];
+    const ia = m.idx[t], ib = m.idx[t + 1], ic = m.idx[t + 2];
+    const a = sp[ia], b = sp[ib], c = sp[ic];
     if (!a || !b || !c) continue;
     const area = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
     if (!alpha && area >= 0) continue; // back face (screen y is flipped)
-    const vi = m.idx[t];
+    const vi = ia;
     const nrm = wn[vi], base = m.col[vi];
     const ndl = Math.max(0, nrm[0] * L[0] + nrm[1] * L[1] + nrm[2] * L[2]);
     let rgb;
@@ -103,7 +121,10 @@ function drawObject(o, alpha) {
     const al = alpha ? o.t[3] : 1;
     const minx = Math.max(0, Math.floor(Math.min(a[0], b[0], c[0]))), maxx = Math.min(W - 1, Math.ceil(Math.max(a[0], b[0], c[0])));
     const miny = Math.max(0, Math.floor(Math.min(a[1], b[1], c[1]))), maxy = Math.min(H - 1, Math.ceil(Math.max(a[1], b[1], c[1])));
-    if (maxx - minx > W * 3 || maxy - miny > H * 3) continue;
+    if (!tex && (maxx - minx > W * 3 || maxy - miny > H * 3)) continue;
+    const uva = [m.uv[ia * 2], m.uv[ia * 2 + 1]];
+    const uvb = [m.uv[ib * 2], m.uv[ib * 2 + 1]];
+    const uvc = [m.uv[ic * 2], m.uv[ic * 2 + 1]];
     for (let y = miny; y <= maxy; y++) {
       for (let x = minx; x <= maxx; x++) {
         const px = x + 0.5, py = y + 0.5;
@@ -114,6 +135,28 @@ function drawObject(o, alpha) {
         const z = w0 * a[2] + w1 * b[2] + w2 * c[2];
         const k = y * W + x;
         if (z >= depth[k]) continue;
+        if (tex) {
+          const invWa = a[3], invWb = b[3], invWc = c[3];
+          const invW = w0 * invWa + w1 * invWb + w2 * invWc;
+          const u = Math.max(0, Math.min(0.9999, (w0 * uva[0] * invWa + w1 * uvb[0] * invWb + w2 * uvc[0] * invWc) / invW));
+          const v = Math.max(0, Math.min(0.9999, (w0 * uva[1] * invWa + w1 * uvb[1] * invWb + w2 * uvc[1] * invWc) / invW));
+          const tx = Math.floor(u * tex.w), ty = Math.floor(v * tex.h);
+          const tIdx = (ty * tex.w + tx) * 4;
+          const texAlpha = (tex.data[tIdx + 3] / 255) * al;
+          if (texAlpha <= 0.02) continue;
+          const tr = (tex.data[tIdx] / 255) * o.t[0];
+          const tg = (tex.data[tIdx + 1] / 255) * o.t[1];
+          const tb = (tex.data[tIdx + 2] / 255) * o.t[2];
+          if (!alpha) {
+            depth[k] = z;
+            color[k * 3] = tr; color[k * 3 + 1] = tg; color[k * 3 + 2] = tb;
+          } else {
+            color[k * 3] = color[k * 3] * (1 - texAlpha) + tr * texAlpha;
+            color[k * 3 + 1] = color[k * 3 + 1] * (1 - texAlpha) + tg * texAlpha;
+            color[k * 3 + 2] = color[k * 3 + 2] * (1 - texAlpha) + tb * texAlpha;
+          }
+          continue;
+        }
         if (!alpha) {
           depth[k] = z;
           color[k * 3] = rgb[0]; color[k * 3 + 1] = rgb[1]; color[k * 3 + 2] = rgb[2];

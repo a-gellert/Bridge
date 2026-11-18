@@ -5,7 +5,6 @@ local i18n = require("game.core.i18n")
 local audio = require("platform.audio")
 local device = require("platform.device")
 local haptics = require("platform.haptics")
-local poki = require("platform.poki")
 
 local M = {}
 
@@ -39,7 +38,9 @@ function M.init()
 	i18n.set_lang(lang)
 	audio.set_enabled(progress.get("sound") ~= false)
 	haptics.set_enabled(progress.get("haptics") ~= false)
-	poki.loading_finished()
+	-- Loading completion is reported once by the HTML5 shell (extension-poki-sdk's template
+	-- calls PokiSDK.gameLoadingFinished at 100%); extension-poki-sdk has no Lua
+	-- game_loading_finished, and calling anything here would only duplicate the measure.
 end
 
 -- Touch-first device? (mobile apps and mobile browsers)

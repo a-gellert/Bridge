@@ -146,4 +146,60 @@ const SDF = {
   },
 };
 
-module.exports = { write, encode, hex, Canvas, SDF };
+function decode(filePathOrBuf) {
+  const buf = Buffer.isBuffer(filePathOrBuf) ? filePathOrBuf : fs.readFileSync(filePathOrBuf);
+  let pos = 8;
+  let w = 0, h = 0, colorType = 6;
+  const idatChunks = [];
+  while (pos < buf.length) {
+    const len = buf.readUInt32BE(pos);
+    const type = buf.slice(pos + 4, pos + 8).toString("ascii");
+    const data = buf.slice(pos + 8, pos + 8 + len);
+    if (type === "IHDR") {
+      w = data.readUInt32BE(0);
+      h = data.readUInt32BE(4);
+      colorType = data[9];
+    } else if (type === "IDAT") {
+      idatChunks.push(data);
+    } else if (type === "IEND") break;
+    pos += 12 + len;
+  }
+  const decompressed = zlib.inflateSync(Buffer.concat(idatChunks));
+  const channels = colorType === 6 ? 4 : 3;
+  const stride = w * channels;
+  const raw = Buffer.alloc(w * h * channels);
+  let srcPos = 0, dstPos = 0;
+  for (let y = 0; y < h; y++) {
+    const filter = decompressed[srcPos++];
+    for (let x = 0; x < stride; x++) {
+      let val = decompressed[srcPos++];
+      const a = x >= channels ? raw[dstPos - channels] : 0;
+      const b = y > 0 ? raw[dstPos - stride] : 0;
+      const c = x >= channels && y > 0 ? raw[dstPos - stride - channels] : 0;
+      if (filter === 1) val = (val + a) & 0xff;
+      else if (filter === 2) val = (val + b) & 0xff;
+      else if (filter === 3) val = (val + ((a + b) >> 1)) & 0xff;
+      else if (filter === 4) {
+        const p = a + b - c;
+        const pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+        const pr = pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+        val = (val + pr) & 0xff;
+      }
+      raw[dstPos++] = val;
+    }
+  }
+  // Convert to RGBA if 3 channels
+  let out = raw;
+  if (channels === 3) {
+    out = Buffer.alloc(w * h * 4);
+    for (let i = 0; i < w * h; i++) {
+      out[i * 4] = raw[i * 3];
+      out[i * 4 + 1] = raw[i * 3 + 1];
+      out[i * 4 + 2] = raw[i * 3 + 2];
+      out[i * 4 + 3] = 255;
+    }
+  }
+  return { w, h, data: out };
+}
+
+module.exports = { write, encode, decode, hex, Canvas, SDF };
