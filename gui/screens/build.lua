@@ -32,22 +32,12 @@ function M.refresh(app)
 	ui.set_bar(h.budget_bar, cost / budget, budget_color(cost / budget))
 	for id, b in pairs(h.mats) do
 		local sel = session.tool == "build" and session.material == id
-		gui.set_color(b.node, sel and ui.BTN_SEL_MAT or ui.BTN_LIGHT)
+		gui.set_color(b.node, sel and ui.YELLOW or ui.PANEL_LT)
 		gui.set_enabled(b.sel, sel)
 	end
-	if h.erase then
-		local sel = session.tool == "erase"
-		gui.set_color(h.erase, sel and ui.BTN_SEL_ERA or ui.BTN_LIGHT)
-		if h.erase_sel then gui.set_enabled(h.erase_sel, sel) end
-	end
-	if h.guide_btn then
-		gui.set_color(h.guide_btn, session.guide and ui.CYAN or ui.BTN_LIGHT)
-		if h.guide_txt then gui.set_color(h.guide_txt, session.guide and ui.WHITE or ui.INK) end
-	end
-	for id, b in pairs(h.vehs) do
-		local sel = session.vehicle == id
-		gui.set_color(b.node, sel and ui.BTN_SEL_VEH or ui.BTN_LIGHT)
-		if b.sel then gui.set_enabled(b.sel, sel) end
+	if h.erase then gui.set_color(h.erase, session.tool == "erase" and ui.RED or ui.PANEL_LT) end
+	for id, node in pairs(h.vehs) do
+		gui.set_color(node, session.vehicle == id and ui.BLUE or ui.PANEL_LT)
 	end
 	if h.undo_btn then h.undo_btn:set_enabled(bp:can_undo()) end
 end
@@ -58,7 +48,9 @@ local function toggle_erase(app)
 end
 
 local function launch(app)
-	if session.blueprint:beam_count() == 0 then
+	-- Level 1 teaches by consequence. Elsewhere the empty-build nudge waits for a real fall.
+	local learned = progress.stats().losses > 0
+	if session.blueprint:beam_count() == 0 and session.index ~= 1 and learned then
 		app.toast(i18n.t("tip_build_" .. (app.touch and "touch" or "pc")), ui.YELLOW)
 	end
 	session.start_drive(session.vehicle)
@@ -66,12 +58,12 @@ end
 
 -- material button
 local function mat_button(app, parent, x, y, w, bh, m)
-	local sel = ui.panel(parent, x, y, w + 4, bh + 4, ui.YELLOW, 18)
-	local node = ui.box(parent, "btn", x, y, w, bh, ui.BTN_LIGHT)
+	local node = ui.box(parent, "btn", x, y, w, bh, ui.PANEL_LT)
 	gui.set_slice9(node, vmath.vector4(16, 16, 16, 24))
+	local sel = ui.panel(node, 0, 0, w + 8, bh + 8, ui.hex("#FFFFFF", 0.0), 20)
 	local ic = ui.box(node, m.icon, 0, bh * 0.16, math.min(w - 12, 84), math.min(w - 12, 84) * 0.66)
-	ui.label(node, "$" .. m.cost, 0, -bh * 0.2, 24, ui.INK, w - 8)
-	ui.label(node, m.max_len .. "m", 0, -bh * 0.38, 18, ui.SLATE_LT, w - 8)
+	ui.label(node, "$" .. m.cost, 0, -bh * 0.2, 24, ui.WHITE, w - 8)
+	ui.label(node, m.max_len .. "m", 0, -bh * 0.38, 18, ui.DIM, w - 8)
 	if m.unlock == session.index then
 		local badge = ui.panel(node, w / 2 - 14, bh / 2 - 8, 56, 26, ui.RED, 12)
 		ui.text(badge, "NEW", 0, 1, 18, ui.WHITE)
@@ -87,10 +79,9 @@ local function mat_button(app, parent, x, y, w, bh, m)
 end
 
 local function veh_button(app, parent, x, y, w, bh, v)
-	local sel = ui.panel(parent, x, y, w + 4, bh + 4, ui.BLUE, 18)
-	local node = ui.box(parent, "btn", x, y, w, bh, ui.BTN_LIGHT)
+	local node = ui.box(parent, "btn", x, y, w, bh, ui.PANEL_LT)
 	gui.set_slice9(node, vmath.vector4(16, 16, 16, 24))
-	ui.icon(node, v.icon, 0, bh * 0.14, math.min(w, bh) * 0.56)
+	ui.icon(node, v.icon, 0, bh * 0.15, math.min(w - 12, 60))
 	for i = 1, 3 do
 		ui.icon(node, i <= v.stars and "star" or "star_slot", (i - 2) * 20, -bh * 0.3, 20, i <= v.stars and ui.STAR or ui.STAR_OFF)
 	end
@@ -98,8 +89,7 @@ local function veh_button(app, parent, x, y, w, bh, v)
 		session.select_vehicle(v.id)
 		M.refresh(app)
 	end)
-	h.vehs[v.id] = { node = node, sel = sel }
-	gui.set_enabled(sel, false)
+	h.vehs[v.id] = node
 	return node
 end
 
@@ -214,15 +204,12 @@ function M.build(app, root)
 		mat_button(app, root, mx0 + mb_w / 2 + (i - 1) * (mb_w + 8), mat_row_y, mb_w, mb_h, mat)
 	end
 	local ex = mx0 + mb_w / 2 + #mats * (mb_w + 8)
-	local esel = ui.panel(root, ex, mat_row_y, mb_w + 4, mb_h + 4, ui.RED, 18)
-	local enode = ui.box(root, "btn", ex, mat_row_y, mb_w, mb_h, ui.BTN_LIGHT)
+	local enode = ui.box(root, "btn", ex, mat_row_y, mb_w, mb_h, ui.PANEL_LT)
 	gui.set_slice9(enode, vmath.vector4(16, 16, 16, 24))
 	ui.icon(enode, "eraser", 0, 10, math.min(56, mb_w - 20))
-	ui.label(enode, i18n.t("erase"), 0, -mb_h * 0.34, 18, ui.INK, mb_w - 8)
+	ui.label(enode, i18n.t("erase"), 0, -mb_h * 0.34, 18, ui.WHITE, mb_w - 8)
 	ui.button(enode, function() toggle_erase(app) end)
 	h.erase = enode
-	h.erase_sel = esel
-	gui.set_enabled(esel, false)
 
 	-- HUD covers the screen top/bottom: tell the camera so the bridge stays in the free area
 	camera.set_insets((top_h + mt + 6) / vh, (bottom_h + mb + 6) / vh)
@@ -231,34 +218,21 @@ function M.build(app, root)
 	ui.round(root, ml + 42, mb + bottom_h + 50, 62, "fit", function()
 		local a = session.level.area or { session.level.start, -4, session.level.finish, 6 }
 		camera.fit(a[1] - 1.5, a[2] - 1, a[3] + 1.5, a[4] + 1.5, false)
-	end, { icon_size = 32 })
-
-	-- onboarding: toggle the translucent reference plan
-	if session.has_guide() then
-		local gb, _, gt = ui.btn(root, ml + 42 + 108, mb + bottom_h + 50, 112, 62, i18n.t("plan"), function()
-			session.set_guide(not session.guide)
-			app.toast(i18n.t(session.guide and "plan_on" or "plan_off"), session.guide and ui.CYAN or ui.DIM)
-			M.refresh(app)
-		end, { color = session.guide and ui.CYAN or ui.PANEL_LT, text_color = session.guide and ui.INK or ui.WHITE, size = 24 })
-		h.guide_btn, h.guide_txt = gb, gt
-	end
+	end, { color = ui.PANEL, icon_size = 30 })
 
 	-- ghost info label (length / price / error), positioned every frame
 	h.info = ui.panel(root, 0, 0, 220, 50, ui.hex("#151926", 0.85), 20)
 	h.info_txt, h.info_comp = ui.label(h.info, "", 0, 2, 26, ui.WHITE, 200)
 	gui.set_enabled(h.info, false)
 
-	-- tip banner
+	-- tip banner: early levels teach only after the player has actually fallen.
 	local tip_key = lvl.tip
 	local new = session.new_materials()
 	local tip_text = tip_key and i18n.t(tip_key) or nil
 	if not tip_text and #new > 0 then tip_text = i18n.f("new_material", i18n.t(new[1].name_key)) end
-	if session.index == 1 and not progress.get("tutorial_done") then
-		tip_text = i18n.t("tip_first") .. "\n" .. i18n.t("tip_build_" .. (app.touch and "touch" or "pc"))
-	elseif session.guide then
-		local plan_hint = i18n.t("tip_plan")
-		tip_text = tip_text and (tip_text .. "  " .. plan_hint) or plan_hint
-	end
+	local early = lvl.index <= 5
+	local learned = progress.stats().losses > 0 or progress.fail_streak(lvl.id) > 0
+	if lvl.index == 1 or (early and not learned) then tip_text = nil end
 	if tip_text and not app.tip_shown[lvl.id] then
 		app.tip_shown[lvl.id] = true
 		local tw2 = math.min(760, vw - 40)
@@ -270,20 +244,6 @@ function M.build(app, root)
 		h.tip = tip
 		h.tip_t = 9
 		ui.button(tip, function() gui.set_enabled(tip, false) h.tip = nil end, { silent = true })
-	end
-
-	-- animated ghost finger on the very first bridge: anchor -> anchor -> GO
-	h.go_node = go_node
-	if lvl.assist and not progress.get("tutorial_done") and session.blueprint:beam_count() == 0
-		and not app.tutorial_touched and lvl.anchors and #lvl.anchors >= 2 then
-		h.tut = {
-			t = 0,
-			a = lvl.anchors[1],
-			b = lvl.anchors[2],
-			line = ui.panel(root, 0, 0, 20, 9, ui.hex("#7CFFB0", 0.55), 5),
-			hand = ui.icon(root, "hand", 0, 0, 92, ui.WHITE),
-		}
-		ui.pulse(h.tut.hand, 1.12, 0.45)
 	end
 
 	M.refresh(app)
@@ -321,39 +281,6 @@ function M.update(app, dt)
 			gui.animate(tip, "color.w", 0, gui.EASING_OUTQUAD, 0.4, 0, function() gui.set_enabled(tip, false) end)
 		end
 	end
-	-- ghost finger: shows the drag once, disappears on the first touch
-	if h.tut then
-		local visible = not app.tutorial_touched and not progress.get("tutorial_done")
-			and session.blueprint and session.blueprint:beam_count() == 0
-		h.tut.t = h.tut.t + dt
-		if not visible or h.tut.t > 19 then
-			ui.delete(h.tut.hand)
-			ui.delete(h.tut.line)
-			h.tut = nil
-		else
-			local ax, ay = camera.world_to_screen(h.tut.a[1], h.tut.a[2], 1.3)
-			local bx, by = camera.world_to_screen(h.tut.b[1], h.tut.b[2], 1.3)
-			ax, ay = ax / app.px_scale, ay / app.px_scale
-			bx, by = bx / app.px_scale, by / app.px_scale
-			-- the dashed green target line becomes visible while the finger "pulls"
-			local line_w = math.max(20, math.abs(bx - ax))
-			gui.set_size(h.tut.line, V3(line_w, 9, 0))
-			gui.set_position(h.tut.line, V3((ax + bx) / 2, (ay + by) / 2 + 6, 0))
-			local phase = h.tut.t % 4.2
-			local hx, hy
-			if phase < 2.6 then
-				local k = 0.5 - 0.5 * math.cos(phase / 2.6 * math.pi * 2)
-				hx, hy = ax + (bx - ax) * k, ay + (by - ay) * k + 64
-				gui.set_color(h.tut.line, ui.hex("#7CFFB0", 0.18 + 0.4 * k))
-			else
-				local gp = gui.get_position(h.go_node)
-				local k = math.min(1, (phase - 2.6) / 1.2)
-				hx, hy = bx + (gp.x - bx) * k, by + 64 + (gp.y + 40 - by - 64) * k
-				gui.set_color(h.tut.line, ui.hex("#7CFFB0", 0.58 * (1 - k)))
-			end
-			gui.set_position(h.tut.hand, V3(hx, hy + math.sin(h.tut.t * 6) * 5, 0))
-		end
-	end
 end
 
 function M.on_event(app, e)
@@ -364,7 +291,6 @@ function M.on_event(app, e)
 		audio.play("build", 0.8, 0.9 + math.random() * 0.2)
 		haptics.build()
 		if session.index == 1 and not progress.get("tutorial_done") then progress.set_setting("tutorial_done", true) end
-		app.tutorial_touched = true
 		if session.guide and session.guide_done() then
 			app.toast(i18n.t("plan_done"), ui.CYAN)
 		end

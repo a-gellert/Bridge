@@ -57,12 +57,15 @@ assert(session.blueprint:beam_count() == 1, "design restored")
 
 -- hint loads the reference design, undo reverts it
 assert(session.load_level(2))
--- onboarding plan: the first three levels show a translucent reference bridge until solved
-assert(levels.get(1).guide and levels.get(2).guide and levels.get(3).guide, "guide plan on levels 1-3")
-assert(not levels.get(4).guide, "guide plan only on the first levels")
-assert(session.guide, "guide plan is on by default before the first star")
-assert(session.set_guide(false) and not session.guide, "plan can be hidden")
-assert(session.set_guide(true) and session.guide, "plan can be shown again")
+-- no entry tutorial: the old plan is gone; the dashed brace hint is a reaction to failure
+assert(not levels.get(1).guide and not levels.get(2).guide and not levels.get(3).guide, "no plan before failure")
+assert(not levels.get(1).tip and not levels.get(1).assist and levels.get(1).no_build_zone,
+	"level 1 has no text plate, no forced material and no highlighted build zone")
+assert(not levels.get(1).brace_hint and not levels.get(2).brace_hint, "no brace hint on levels 1-2")
+assert(levels.get(3).brace_hint and levels.get(4).brace_hint and levels.get(5).brace_hint, "brace hint on levels 3-5")
+assert(not levels.get(6).brace_hint, "brace hint ends at level 5")
+assert(not session.guide, "no hint on entry")
+assert(not session.set_guide(true), "hint cannot be forced before failures")
 session.clear()
 assert(not session.guide_done(), "empty design is not plan-complete")
 assert(session.apply_hint())
@@ -70,6 +73,20 @@ assert(session.blueprint:beam_count() == #levels.get(2).solution)
 assert(session.guide_done(), "reference bridge counts as plan-complete")
 assert(session.undo())
 assert(session.blueprint:beam_count() == 0)
+
+-- the dashed brace hint unlocks only after the 2nd consecutive collapse on levels 3-5
+assert(session.load_level(3))
+assert(not session.guide, "level 3 starts without a hint")
+res = drive("moto")
+assert(res and not res.won, "empty level 3 must fail")
+assert(session.stop_drive())
+assert(not session.guide, "one collapse is not enough")
+res = drive("moto")
+assert(res and not res.won, "empty level 3 must fail again")
+assert(session.stop_drive())
+assert(session.guide, "second consecutive collapse shows the brace hint")
+assert(session.set_guide(false) and not session.guide, "any touch can dismiss the hint")
+assert(session.set_guide(true) and session.guide, "hint can be recalled on the same attempt")
 
 -- events were emitted
 local evs = events.drain("test")

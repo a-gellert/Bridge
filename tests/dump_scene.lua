@@ -37,9 +37,14 @@ if drive > 0 then
 	session.start_drive(env("VEH", "truck"))
 	for _ = 1, math.floor(drive * 60) do frame() end
 else
-	-- HINT=0 shows the onboarding ghost plan instead of loading the reference bridge
+	-- HINT=0 leaves the bridge empty; GUIDE=1 previews the post-failure dashed brace hint
+	local guide = env("GUIDE", "0") == "1"
+	if guide then
+		progress.level_state(session.level.id).fails = 2
+		session.guide = session.has_guide()
+	end
 	if env("HINT", "1") == "1" then session.apply_hint() end
-	if env("GUIDE", "0") == "1" then session.set_guide(true) end
+	if guide then session.set_guide(true) end
 	session.selected_node = nil
 	for _ = 1, 40 do frame() end
 end

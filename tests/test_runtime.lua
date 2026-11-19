@@ -109,12 +109,10 @@ frames(3)
 assert(session.state == "build" and session.index == 1, "first start should open level 1, state=" .. session.state)
 assert(find_text("ПУСК!"), "build HUD with GO button")
 assert(count_objects() > 20, "level visuals spawned")
--- onboarding: translucent reference plan with a toggle
-assert(find_text("ПЛАН"), "onboarding plan toggle")
-click_text("ПЛАН")
-assert(not session.guide, "plan toggle hides the ghost")
-click_text("ПЛАН")
-assert(session.guide, "plan toggle shows the ghost again")
+-- level 1 is completely clean: no plan overlay, no text plate, no forced tutorial step
+assert(not find_text("ПЛАН"), "no tutorial plan on the first level")
+assert(not session.guide, "level 1 never shows a hint before a failure")
+assert(not levels.get(1).guide and not levels.get(1).brace_hint, "level 1 has no tutorial data")
 
 -- build the road by dragging from the left anchor to the right one
 local ax, ay = world_screen(0, 0)
@@ -302,6 +300,33 @@ end
 assert(session.state == "build", "instantly back to build after collapse")
 assert(session.blueprint:beam_count() == 1, "blueprint preserved intact, not reset")
 assert(session.index == 2, "still on level 2")
+
+-- post-failure hint: two collapses on level 3 arm the dashed braces, the first touch clears them
+local function count_zones()
+	local n = 0
+	for _, o in pairs(mock.objects) do if o.factory == "f_zone" then n = n + 1 end end
+	return n
+end
+session.load_level(3)
+frames(2)
+session.clear()
+local zones0 = count_zones()
+for i = 1, 2 do
+	assert(not session.guide, "no brace hint before collapse " .. i)
+	session.start_drive("moto")
+	for _ = 1, 600 do
+		frame()
+		if session.state == "build" then break end
+	end
+	assert(session.state == "build", "fast return after collapse " .. i .. " on level 3")
+end
+assert(session.guide, "dashed brace hint appears after the second collapse")
+frames(2)
+assert(count_zones() > zones0, "dashed brace nodes reach the world")
+app.on_input(G, hash("touch"), { x = 10, y = 10, screen_x = 10, screen_y = 10, pressed = true })
+app.on_input(G, hash("touch"), { x = 10, y = 10, screen_x = 10, screen_y = 10, released = true })
+frames(2)
+assert(not session.guide and count_zones() == zones0, "first screen touch dismisses and removes the hint")
 
 -- 2. Auto-transition to next level on 3 stars without manual click
 session.load_level(1)

@@ -50,14 +50,11 @@ end
 local function make_pedal(root, x, y, size, color, glow_color, icon_name, label)
 	local node = ui.box(root, "circle", x, y, size, size, color)
 	ui.box(node, "glow", 0, 0, size * 1.18, size * 1.18, ui.hex(glow_color, 0.14))
-	local ring = ui.box(node, "ring", 0, 0, size * 0.98, size * 0.98, ui.WHITE)
-	local well_sz = size * 0.68
-	ui.box(node, "circle", 0, 10, well_sz, well_sz, ui.hex("#FFFFFF", 0.95))
 	local inner = ui.pane(node, 0, 0)
 	gui.set_size(inner, vmath.vector3(size, size, 0))
-	ui.icon(inner, icon_name, 0, 10, size * 0.44)
-	ui.text(inner, label, 0, -size * 0.32, 26, ui.WHITE)
-	return node, inner, ring
+	ui.icon(inner, icon_name, 0, 12, size * 0.4)
+	ui.text(inner, label, 0, -size * 0.3, 26, ui.WHITE)
+	return node, inner, ui.box(node, "ring", 0, 0, size * 0.98, size * 0.98, ui.hex(glow_color, 0.28))
 end
 
 function M.build(app, root)
@@ -89,15 +86,16 @@ function M.build(app, root)
 	h.gas_base = vmath.vector3(1, 1, 1)
 	h.brake_base = vmath.vector3(1, 1, 1)
 
-	if not app.controls_tip_shown then
+	if not app.controls_tip_shown and session.index ~= 1 and progress.stats().losses > 0 then
 		app.controls_tip_shown = true
 		local tw = math.min(720, vw - ml - mr - 40)
 		local tip = ui.panel(root, vw / 2, vh - mt - 140, tw, 80, ui.hex("#151926", 0.82), 22)
 		ui.label(tip, i18n.t(app.touch and "tip_controls_touch" or "tip_controls_pc"), 0, 0, 24, ui.WHITE, tw - 40, 2)
 		gui.animate(tip, "color.w", 0, gui.EASING_INQUAD, 0.6, 5, function() gui.set_enabled(tip, false) end)
 	end
-	-- teach the stress colours on the first onboarding run: green = safe, red = about to snap
-	if session.level and session.level.guide and not progress.get("stress_tip_done") then
+	-- teach the stress colours only after the player has already fallen on a brace-hint level
+	if session.level and session.level.brace_hint
+		and progress.fail_streak(session.level.id) >= 1 and not progress.get("stress_tip_done") then
 		progress.set_setting("stress_tip_done", true)
 		local tw = math.min(620, vw - ml - mr - 40)
 		local tip = ui.panel(root, vw / 2, vh - mt - 236, tw, 64, ui.hex("#151926", 0.82), 22)

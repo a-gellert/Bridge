@@ -37,7 +37,7 @@ M.result = nil
 M.input = { gas = false, brake = false }
 M.paused = false
 M.hint_used = false
-M.guide = false          -- translucent reference "plan" on the onboarding levels
+M.guide = false          -- dashed brace hint, unlocked by repeated failure on levels 3-5
 M.budget_bonus = false
 
 local finish_delay = 0
@@ -96,9 +96,8 @@ function M.load_level(index)
 	M.paused = false
 	M.hint_used = false
 	M.budget_bonus = false
-	-- Onboarding levels show the reference bridge as a translucent plan until the
-	-- player earns a star there (the toggle stays available for replays).
-	M.guide = (lvl.guide and lvl.solution ~= nil and progress.stars(lvl.id) == 0) and true or false
+	-- Never teach on entry: the dashed brace hint is a reaction to repeated failure.
+	M.guide = M.has_guide()
 	-- keep the chosen material if this level has it, else the first one
 	if not M.blueprint.allowed[M.material] then M.material = lvl.materials[1] end
 	progress.record_attempt(lvl)
@@ -132,8 +131,6 @@ end
 -- ------------------------------------------------------------------ build mode
 function M.select_material(id)
 	if M.blueprint and M.blueprint.allowed[id] then
-		-- tutorial level: a single correct road, no way to fail at the UI
-		if M.level and M.level.assist then id = "road" end
 		M.material = id
 		M.tool = "build"
 		events.emit("design_changed", {})
@@ -215,10 +212,12 @@ function M.clear()
 	return false
 end
 
--- ------------------------------------------------------------------ onboarding plan
--- The tutorial levels can point at the reference solution with a translucent overlay.
+-- ------------------------------------------------------------------ post-failure brace hint
+-- Only levels 3-5 carry `brace_hint`, and only after two consecutive collapses on that
+-- level. The hint draws the non-deck solution beams as dashed lines (see world/guide_view).
 function M.has_guide()
-	return M.level and M.level.guide and M.level.solution ~= nil and true or false
+	return M.level and M.level.brace_hint and M.level.solution ~= nil
+		and progress.fail_streak(M.level.id) >= 2 and true or false
 end
 
 function M.set_guide(on)
@@ -297,6 +296,8 @@ function M.stop_drive()
 	M.result = nil
 	M.input.gas, M.input.brake = false, false
 	M.paused = false
+	-- The result has already recorded the failure, so the 2nd collapse re-arms the hint.
+	M.guide = M.has_guide()
 	set_state("build")
 	events.emit("drive_stopped", {})
 	return true

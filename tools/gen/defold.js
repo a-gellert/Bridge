@@ -36,7 +36,7 @@ size: 48
 antialias: 1
 alpha: 1.0
 outline_alpha: 1.0
-outline_width: 4.0
+outline_width: 1.5
 shadow_alpha: 0.0
 shadow_blur: 0
 output_format: TYPE_DISTANCE_FIELD

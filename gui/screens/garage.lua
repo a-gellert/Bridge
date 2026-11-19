@@ -164,7 +164,7 @@ function M.build(app, root)
 		local node = ui.btn(root, x, vy, vw3, 72, i18n.t(v.name_key), function()
 			app.garage_vehicle = v.id
 			app.rebuild()
-		end, { icon = v.icon, icon_size = 34, color = sel and ui.BLUE or ui.BTN_LIGHT, text_color = sel and ui.WHITE or ui.INK, size = 22 })
+		end, { icon = v.icon, icon_size = 34, color = sel and ui.BLUE or ui.PANEL_LT, size = 22 })
 		ui.pop(node, 0.02 * i)
 	end
 
@@ -178,7 +178,7 @@ function M.build(app, root)
 		ui.btn(root, x, ky, kw, 64, i18n.t("kind_" .. k), function()
 			app.garage_kind = k
 			app.rebuild()
-		end, { icon = KIND_ICON[k], icon_size = 28, color = sel and ui.PURPLE or ui.BTN_LIGHT, text_color = sel and ui.WHITE or ui.INK, size = 22 })
+		end, { icon = KIND_ICON[k], icon_size = 28, color = sel and ui.PURPLE or ui.PANEL_LT, size = 22 })
 	end
 
 	-- item grid

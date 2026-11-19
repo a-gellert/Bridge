@@ -246,31 +246,12 @@ const MAT_ICONS = {
 
 const fs = require("fs");
 
-const UI_SIZES = {
-  white: [8, 8],
-  panel: [64, 64],
-  btn: [64, 72],
-  circle: [128, 128],
-  ring: [128, 128],
-  glow: [128, 128],
-};
-
-const TWODOTS_UI = new Set([
-  // Primitives
-  "white", "panel", "btn", "circle", "ring", "glow",
-  // Materials
+const NANO_ICONS = new Set([
   "mat_road", "mat_steel_road", "mat_wood", "mat_steel",
   "mat_cable", "mat_rope", "mat_boost", "mat_bounce",
-  // Vehicles & controls
-  "veh_moto", "veh_car", "veh_truck", "pedal_gas", "pedal_brake",
-  // Tools & actions
-  "wrench", "eraser", "trash", "undo", "fit", "hint",
-  // Rewards & meta
-  "coin", "star", "star_slot", "trophy", "garage", "lock",
-  // Navigation
-  "play", "stop", "retry", "next", "back", "home", "menu", "close",
-  // Settings, gestures & math
-  "check", "hand", "video", "sound_on", "sound_off", "vibrate_on", "vibrate_off", "plus", "minus"
+  "veh_moto", "veh_car", "veh_truck",
+  "wrench", "eraser", "pedal_gas", "pedal_brake",
+  "trophy", "garage", "coin", "hint", "undo"
 ]);
 
 function generate(root) {
@@ -278,9 +259,8 @@ function generate(root) {
   const dir = path.join(root, "assets/images/ui");
   for (const [name, fn] of Object.entries({ ...IMAGES, ...MAT_ICONS })) {
     const targetFile = path.join(dir, name + ".png");
-    if (TWODOTS_UI.has(name) && fs.existsSync(targetFile)) {
-      const sz = UI_SIZES[name] || (name.startsWith("mat_") ? [96, 64] : [96, 96]);
-      out.push({ name, w: sz[0], h: sz[1] });
+    if (NANO_ICONS.has(name) && fs.existsSync(targetFile)) {
+      out.push({ name, w: name.startsWith("mat_") ? 96 : 96, h: name.startsWith("mat_") ? 64 : 96 });
       continue;
     }
     const c = fn();

@@ -359,7 +359,10 @@ function on_input(self, action_id, action)
 		return true
 	end
 	to_virtual(action)
-	if app.screen == "build" and action.pressed and session.state == "build" then app.tutorial_touched = true end
+	-- Any first touch dismisses the post-failure dashed hint immediately.
+	if app.screen == "build" and action.pressed and session.state == "build" and session.guide then
+		session.set_guide(false)
+	end
 	local scr = SCREENS[app.screen]
 
 	-- keyboard

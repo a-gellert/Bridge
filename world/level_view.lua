@@ -687,21 +687,24 @@ function M.build(level)
 				view.grid[#view.grid + 1] = chunk
 			end
 		end
-		view.zone = add(gos, spawn.create("zone", (a[1] + a[3]) * 0.5, (a[2] + a[4]) * 0.5, -1.7, 0, a[3] - a[1] + 1, a[4] - a[2] + 1, 1))
-		spawn.tint(view.zone, 1, 1, 1, 0.05)
-		-- crisp border of the build zone (thin quads with a constant world thickness)
-		local zx, zy = (a[1] + a[3]) * 0.5, (a[2] + a[4]) * 0.5
-		local zw, zh = a[3] - a[1] + 1, a[4] - a[2] + 1
-		local edges = {
-			{ zx, a[4] + 0.5, zw, 0.05 },
-			{ zx, a[2] - 0.5, zw, 0.05 },
-			{ a[1] - 0.5, zy, 0.05, zh },
-			{ a[3] + 0.5, zy, 0.05, zh },
-		}
-		for _, e in ipairs(edges) do
-			local edge = add(gos, spawn.create("zone", e[1], e[2], tuning.BUILD_PLANE_Z + 0.06, 0, e[3], e[4], 1))
-			spawn.tint(edge, 0.62, 0.94, 1, 0.34)
-			view.grid[#view.grid + 1] = edge
+		-- Level 1 stays completely clean: no highlighted "allowed/forbidden" area, just dots.
+		if not level.no_build_zone then
+			view.zone = add(gos, spawn.create("zone", (a[1] + a[3]) * 0.5, (a[2] + a[4]) * 0.5, -1.7, 0, a[3] - a[1] + 1, a[4] - a[2] + 1, 1))
+			spawn.tint(view.zone, 1, 1, 1, 0.05)
+			-- crisp border of the build zone (thin quads with a constant world thickness)
+			local zx, zy = (a[1] + a[3]) * 0.5, (a[2] + a[4]) * 0.5
+			local zw, zh = a[3] - a[1] + 1, a[4] - a[2] + 1
+			local edges = {
+				{ zx, a[4] + 0.5, zw, 0.05 },
+				{ zx, a[2] - 0.5, zw, 0.05 },
+				{ a[1] - 0.5, zy, 0.05, zh },
+				{ a[3] + 0.5, zy, 0.05, zh },
+			}
+			for _, e in ipairs(edges) do
+				local edge = add(gos, spawn.create("zone", e[1], e[2], tuning.BUILD_PLANE_Z + 0.06, 0, e[3], e[4], 1))
+				spawn.tint(edge, 0.62, 0.94, 1, 0.34)
+				view.grid[#view.grid + 1] = edge
+			end
 		end
 	end
 	return view

@@ -19,24 +19,19 @@ M.hex = hex
 
 M.WHITE = V4(1, 1, 1, 1)
 M.CLEAR = V4(1, 1, 1, 0)
-M.INK = hex("#1A202C")
-M.PANEL = hex("#2D3748", 0.94)
-M.PANEL_LT = hex("#3D4A5C", 0.96)
-M.CARD = hex("#323A4E", 1)
-M.DIM = hex("#A0AEC0")
-M.GREEN = hex("#4EBAA6")     -- Two Dots Mint
-M.YELLOW = hex("#F6B73C")    -- Two Dots Mustard
-M.ORANGE = hex("#F9A36B")    -- Two Dots Peach
-M.RED = hex("#F57268")       -- Two Dots Coral
-M.BLUE = hex("#63B3ED")      -- Two Dots Sky
-M.CYAN = hex("#4FD1C5")      -- Two Dots Soft Cyan
-M.PURPLE = hex("#9F7AEA")    -- Two Dots Lavender/Purple
-M.STAR = hex("#F6B73C")      -- Two Dots Mustard
-M.STAR_OFF = hex("#718096")  -- Two Dots Slate Slot
-M.BTN_LIGHT = hex("#FFFFFF") -- Two Dots Light Tactile Card
-M.BTN_SEL_MAT = hex("#FFFBF0")
-M.BTN_SEL_VEH = hex("#F0F8FF")
-M.BTN_SEL_ERA = hex("#FFF2F0")
+M.INK = hex("#1B2030")
+M.PANEL = hex("#262D40", 0.92)
+M.PANEL_LT = hex("#39425E", 0.96)
+M.CARD = hex("#323A52", 1)
+M.DIM = hex("#A9B3C9")
+M.GREEN = hex("#35C97E")
+M.YELLOW = hex("#FFC93C")
+M.ORANGE = hex("#FF8A1C")
+M.RED = hex("#E5484D")
+M.BLUE = hex("#3E8EF7")
+M.PURPLE = hex("#8E6CF0")
+M.STAR = hex("#FFD23F")
+M.STAR_OFF = hex("#4A536D")
 
 M.druid = nil
 M.context = nil
@@ -119,25 +114,8 @@ function M.set_label(n, comp, str)
 	if comp then comp:set_text(str) else gui.set_text(n, str) end
 end
 
-local PRIMITIVES = {
-	white = true,
-	panel = true,
-	circle = true,
-	ring = true,
-	glow = true,
-	btn = true,
-}
-
 function M.icon(parent, image, x, y, size, color)
-	local c = color or M.WHITE
-	if not PRIMITIVES[image] and color and color ~= M.WHITE and color ~= M.DIM then
-		if c.w < 0.99 then
-			c = V4(1, 1, 1, c.w)
-		else
-			c = M.WHITE
-		end
-	end
-	return M.box(parent, image, x, y, size, size, c)
+	return M.box(parent, image, x, y, size, size, color)
 end
 
 function M.delete(n)
@@ -155,12 +133,10 @@ function M.button(node, fn, opts)
 end
 
 -- Rounded button with optional icon and label.
--- opts: color, icon, icon_size, text_color, size (text), disabled, silent, well
+-- opts: color, icon, icon_size, text_color, size (text), disabled, silent
 function M.btn(parent, x, y, w, h, label, fn, opts)
 	opts = opts or {}
-	local is_light = opts.color == nil or opts.color == M.WHITE or opts.color == M.BTN_LIGHT
-	local bg_color = opts.color or M.BTN_LIGHT
-	local node = M.box(parent, "btn", x, y, w, h, bg_color)
+	local node = M.box(parent, "btn", x, y, w, h, opts.color or M.PANEL_LT)
 	local r = math.min(20, math.floor(math.min(w, h) * 0.4))
 	gui.set_slice9(node, V4(r, r, r, r + 8))
 	local has_label = label and label ~= ""
@@ -168,41 +144,24 @@ function M.btn(parent, x, y, w, h, label, fn, opts)
 	if opts.icon then
 		local isz = opts.icon_size or math.min(h - 26, 44)
 		local ix = has_label and (-w / 2 + 16 + isz / 2) or 0
-		-- If button is colored (not light), add an inner contrast well behind the icon!
-		if not is_light and opts.well ~= false then
-			local well_sz = isz + 10
-			M.box(node, "circle", ix, 4, well_sz, well_sz, hex("#FFFFFF", 0.94))
-		end
 		icon_node = M.icon(node, opts.icon, ix, 4, isz, opts.icon_color or M.WHITE)
 	end
 	local txt
 	if has_label then
 		local isz = opts.icon and (opts.icon_size or math.min(h - 26, 44)) + 12 or 0
-		local def_text_color = is_light and M.INK or M.WHITE
-		txt = M.label(node, label, isz / 2, 4, opts.size or 30, opts.text_color or def_text_color, w - 24 - isz)
+		txt = M.label(node, label, isz / 2, 4, opts.size or 30, opts.text_color or M.WHITE, w - 24 - isz)
 	end
 	local b = M.button(node, fn, opts)
 	return node, b, txt, icon_node
 end
 
--- Round icon button (Two Dots booster style with white outer stroke & inner contrast well).
+-- Round icon button.
 function M.round(parent, x, y, size, image, fn, opts)
 	opts = opts or {}
-	local is_light = opts.color == nil or opts.color == M.WHITE or opts.color == M.BTN_LIGHT
-	local bg_color = opts.color or M.BTN_LIGHT
-	local node = M.box(parent, "circle", x, y, size, size, bg_color)
-	if opts.stroke ~= false then
-		local stroke_col = is_light and hex("#D2DAE4", 0.9) or hex("#FFFFFF", 0.95)
-		M.box(node, "ring", 0, 0, size, size, opts.stroke_color or stroke_col)
-	end
-	if not is_light and opts.well ~= false then
-		local well_sz = size * 0.74
-		M.box(node, "circle", 0, 0, well_sz, well_sz, hex("#FFFFFF", 0.94))
-	end
-	local icon_sz = opts.icon_size or (size * 0.52)
-	local icon_node = M.icon(node, image, 0, 0, icon_sz, opts.icon_color or M.WHITE)
+	local node = M.box(parent, "circle", x, y, size, size, opts.color or M.PANEL_LT)
+	M.icon(node, image, 0, 0, size * 0.56, opts.icon_color or M.WHITE)
 	local b = M.button(node, fn, opts)
-	return node, b, icon_node
+	return node, b
 end
 
 -- Absorbs touches on a panel so they never reach the world behind it.
@@ -233,7 +192,7 @@ function M.stars(parent, x, y, size, count, gap)
 	local out = {}
 	gap = gap or size * 1.05
 	for i = 1, 3 do
-		local n = M.icon(parent, i <= count and "star" or "star_slot", x + (i - 2) * gap, y, size, M.WHITE)
+		local n = M.icon(parent, i <= count and "star" or "star_slot", x + (i - 2) * gap, y, size, i <= count and M.STAR or M.STAR_OFF)
 		out[i] = n
 	end
 	return out
@@ -241,7 +200,7 @@ end
 
 function M.set_star(n, on)
 	gui.play_flipbook(n, on and "star" or "star_slot")
-	gui.set_color(n, M.WHITE)
+	gui.set_color(n, on and M.STAR or M.STAR_OFF)
 end
 
 -- Rest scale of nodes that are popping in or pulsing (weak keys: deleted nodes drop out).

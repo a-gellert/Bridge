@@ -32,8 +32,7 @@ function M.build(app, root)
 		local x = vw / 2 + (ci - (n + 1) / 2) * (tab_w + 12)
 		local unlocked = progress.chapter_unlocked(ci)
 		local sel = ci == app.chapter
-		local color = sel and CH_COLORS[ci] or (unlocked and ui.BTN_LIGHT or ui.PANEL)
-		local text_color = sel and ui.WHITE or (unlocked and ui.INK or ui.DIM)
+		local color = sel and CH_COLORS[ci] or (unlocked and ui.PANEL_LT or ui.CARD)
 		local label = app.portrait and tostring(ci) or i18n.pick(ch.name)
 		ui.btn(root, x, tab_y, tab_w, 76, label, function()
 			app.chapter = ci
@@ -45,7 +44,7 @@ function M.build(app, root)
 				end
 			end
 			app.rebuild()
-		end, { color = color, text_color = text_color, icon = (not unlocked) and "lock" or nil, icon_size = 30, size = app.portrait and 34 or 26 })
+		end, { color = color, icon = (not unlocked) and "lock" or nil, icon_size = 30, size = app.portrait and 34 or 26 })
 	end
 
 	-- chapter title
