@@ -17,11 +17,11 @@ end
 
 M.list = {
 	{
-		id = "first_bridge", icon = "wrench", reward = 25,
+		id = "first_bridge", icon = "bridge", reward = 25,
 		test = function(ctx) return (ctx.stats and ctx.stats.built or 0) >= 1 end,
 	},
 	{
-		id = "engineer", icon = "fit", reward = 50,
+		id = "engineer", icon = "wrench", reward = 50,
 		test = function(ctx) return (ctx.beams or 0) >= 10 end,
 	},
 	{
@@ -29,21 +29,21 @@ M.list = {
 		test = function(ctx) return won(ctx) and ctx.result.ratio <= 0.5 end,
 	},
 	{
-		id = "acrobat", icon = "retry", reward = 100,
+		id = "acrobat", icon = "flip", reward = 100,
 		test = function(ctx) return run_flag(ctx, "trick_landed") end,
 	},
 	{
-		id = "heavy_artillery", icon = "veh_truck", reward = 100,
+		id = "heavy_artillery", icon = "truck", reward = 100,
 		test = function(ctx)
 			return won(ctx) and ctx.result.vehicle == "truck" and (ctx.result.broken or 0) == 0
 		end,
 	},
 	{
-		id = "quantum", icon = "play", reward = 75,
+		id = "quantum", icon = "portal", reward = 75,
 		test = function(ctx) return (ctx.run and ctx.run.portals or 0) >= 3 end,
 	},
 	{
-		id = "on_a_wing", icon = "wrench", reward = 125,
+		id = "on_a_wing", icon = "bandage", reward = 125,
 		test = function(ctx)
 			return won(ctx) and (ctx.result.broken or 0) >= math.max(1, math.floor((ctx.result.beams or 0) * 0.8))
 		end,
@@ -53,27 +53,27 @@ M.list = {
 		test = function() return progress.total_stars() >= 72 end,
 	},
 	{
-		id = "chapter_two", icon = "lock", reward = 50,
+		id = "chapter_two", icon = "flag", reward = 50,
 		test = function() return progress.chapter_stars(2) > 0 end,
 	},
 	{
-		id = "speedrun", icon = "pedal_gas", reward = 100,
+		id = "speedrun", icon = "stopwatch", reward = 100,
 		test = function(ctx) return won(ctx) and (ctx.result.time or 99) <= 8 end,
 	},
 	{
-		id = "no_brake", icon = "pedal_brake", reward = 100,
+		id = "no_brake", icon = "nobrake", reward = 100,
 		test = function(ctx) return won(ctx) and not run_flag(ctx, "used_brake") end,
 	},
 	{
-		id = "crash_test", icon = "close", reward = 50,
+		id = "crash_test", icon = "boom", reward = 50,
 		test = function(ctx) return (ctx.stats and ctx.stats.crashes or 0) >= 10 end,
 	},
 	{
-		id = "collector", icon = "garage", reward = 100,
+		id = "collector", icon = "brush", reward = 100,
 		test = function() return progress.owned_skin_count() >= 5 end,
 	},
 	{
-		id = "persistent", icon = "home", reward = 75,
+		id = "persistent", icon = "heart", reward = 75,
 		test = function(ctx) return (ctx.stats and ctx.stats.attempts or 0) >= 50 end,
 	},
 	{

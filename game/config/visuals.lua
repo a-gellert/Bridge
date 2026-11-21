@@ -25,11 +25,15 @@ M.defs = {
 	beam_cable = { factory = "f_beam_cable" },
 	-- joints
 	node_joint = { factory = "f_node_joint" },
-	node_anchor = { factory = "f_node_anchor" },
+	node_anchor = { factory = "f_node_anchor", scale = 1.3 }, -- reads as a fixed mount at 720p
 	-- vehicles (origin = physics body center) and wheels
 	veh_moto = { factory = "f_veh_moto" },
 	veh_car = { factory = "f_veh_car" },
 	veh_truck = { factory = "f_veh_truck" },
+	-- bodywork of each vehicle in neutral greys, tinted with the garage paint (tools/vox/pipeline.js PAINT)
+	veh_moto_paint = { factory = "f_veh_moto_paint" },
+	veh_car_paint = { factory = "f_veh_car_paint" },
+	veh_truck_paint = { factory = "f_veh_truck_paint" },
 	wheel_moto = { factory = "f_wheel_moto" },
 	wheel_car = { factory = "f_wheel_car" },
 	wheel_truck = { factory = "f_wheel_truck" },
@@ -43,8 +47,7 @@ M.defs = {
 	water_top = { factory = "f_water_top", alpha = true },
 	water_wave = { factory = "f_water_wave", alpha = true },
 	sky_band = { factory = "f_sky_band" },
-	bg_sky = { factory = "f_bg_sky" },
-	bg_mountains = { factory = "f_bg_mountains", alpha = true },
+	forest = { factory = "f_forest" },
 	-- level props
 	flag_finish = { factory = "f_flag_finish" },
 	flag_start = { factory = "f_flag_start" },
@@ -83,7 +86,11 @@ M.defs = {
 	crystal_cluster = { factory = "f_crystal_cluster" },
 	windmill = { factory = "f_windmill" },
 	windmill_blades = { factory = "f_windmill_blades" },
+	-- garage toppers (procedural, base at y = 0; placed on vehicles.lua mounts)
 	spoiler = { factory = "f_spoiler" },
+	topper_beacon = { factory = "f_topper_beacon" },
+	topper_duck = { factory = "f_topper_duck" },
+	topper_hat = { factory = "f_topper_hat" },
 	bird = { factory = "f_bird" },
 	butterfly = { factory = "f_butterfly" },
 	lab_generator = { factory = "f_lab_generator", scale = 1.0 },

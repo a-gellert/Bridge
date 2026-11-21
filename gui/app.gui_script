@@ -70,8 +70,13 @@ function app.rebuild()
 	app.pause_layer = nil
 	app.exit_layer = nil
 	app.root = ui.pane(nil, 0, 0)
+	app.hud_bottom, app.result_top = nil, nil -- set again by the screen being built
 	ui.new_druid()
 	app.screen = screen_for_state()
+	if app.screen == "levels" or app.screen == "garage" or app.screen == "achievements" then
+		-- full-screen menus: dim the live world behind them so cards and text stay calm and legible
+		ui.box(app.root, "white", app.vw / 2, app.vh / 2, app.vw, app.vh, ui.hex("#0B0E16", 0.4))
+	end
 	SCREENS[app.screen].build(app, app.root)
 	if session.state == "result" and session.result then
 		result_popup.build(app, app.root, session.result)
@@ -175,16 +180,29 @@ function app.toast(text, color)
 	end
 	local w = math.min(660, app.vw - 40)
 	local y = app.vh * (app.portrait and 0.62 or 0.66)
+	local th, fs = 64, 28
 	local delay = 0
-	if session.state == "result" then
-		-- the result card owns the middle of the screen: toast near the top, and only after the
-		-- title and the stars have landed, so the win moment is never covered
-		local _, _, mt = layout.margins(app.vw, app.vh, 16)
-		y = app.vh - mt - 118
+	local _, _, mt = layout.margins(app.vw, app.vh, 16)
+	if app.screen == "build" and session.state == "build" and app.hud_bottom then
+		-- never over the bridge the player is looking at: just above the bottom bar, clear of the
+		-- fit-view button on the left
+		w = math.min(660, app.vw - 230)
+		fs = app.portrait and 24 or 28
+		y = app.hud_bottom + 14 + th / 2
+	elseif session.state == "drive" then
+		y = app.vh - mt - 140
+	end
+	if session.state == "result" and app.result_top then
+		-- the result card owns the middle of the screen: the toast sits in the strip above it
+		-- (result.lua sizes the card to leave that strip), after the title and stars have landed
+		th, fs = 54, 25
+		y = math.min(app.vh - mt - th / 2, app.result_top + 6 + th / 2)
 		delay = 1.2
 	end
-	toast_node = ui.panel(app.root, app.vw / 2, y, w, 64, ui.hex("#151926", 0.9), 24)
-	ui.label(toast_node, text, 0, 2, 28, color or ui.WHITE, w - 30)
+	toast_node = ui.panel(app.root, app.vw / 2, y, w, th, ui.hex("#151926", 0.94), 24)
+	-- accent edge in the message colour (same language as the tip banner)
+	ui.panel(toast_node, -w / 2 + 6, 0, 12, th, color or ui.WHITE, 6)
+	ui.label(toast_node, text, 6, 2, fs, color or ui.WHITE, w - 42)
 	ui.pop(toast_node, delay)
 	toast_t = 1.8 + delay
 end
@@ -235,8 +253,18 @@ function init(self)
 			end
 		end)
 	end
+	-- QA hook for screenshots: `--config=bridge.debug_level=N` (tools/web_smoke.js --cfg=...) opens
+	-- level N directly and `bridge.debug_screen=garage|achievements|levels|menu` opens a screen.
+	-- Neither key exists in game.project, so release builds never take this path.
+	local dbg_level = sys.get_config_int("bridge.debug_level", 0)
+	local dbg_screen = sys.get_config_string("bridge.debug_screen", "")
+	if dbg_level > 0 and levels.get(dbg_level) then
+		session.load_level(dbg_level)
+		events.drain("gui")
+	elseif dbg_screen == "levels" or dbg_screen == "garage" or dbg_screen == "achievements" or dbg_screen == "menu" then
+		app.screen = dbg_screen
 	-- Poki "first seconds": a brand-new player starts building right away
-	if progress.total_stars() == 0 and not progress.get("tutorial_done") then
+	elseif progress.total_stars() == 0 and not progress.get("tutorial_done") then
 		session.load_level(1)
 		events.drain("gui")
 	end

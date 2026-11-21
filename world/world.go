@@ -108,6 +108,21 @@ embedded_components {
   data: "prototype: \"/entities/spoiler.go\"\n"
 }
 embedded_components {
+  id: "f_topper_beacon"
+  type: "factory"
+  data: "prototype: \"/entities/topper_beacon.go\"\n"
+}
+embedded_components {
+  id: "f_topper_duck"
+  type: "factory"
+  data: "prototype: \"/entities/topper_duck.go\"\n"
+}
+embedded_components {
+  id: "f_topper_hat"
+  type: "factory"
+  data: "prototype: \"/entities/topper_hat.go\"\n"
+}
+embedded_components {
   id: "f_block"
   type: "factory"
   data: "prototype: \"/entities/block.go\"\n"
@@ -221,6 +236,11 @@ embedded_components {
   id: "f_mountain"
   type: "factory"
   data: "prototype: \"/entities/mountain.go\"\n"
+}
+embedded_components {
+  id: "f_forest"
+  type: "factory"
+  data: "prototype: \"/entities/forest.go\"\n"
 }
 embedded_components {
   id: "f_lab_panel"
@@ -343,12 +363,17 @@ embedded_components {
   data: "prototype: \"/entities/lantern_post.go\"\n"
 }
 embedded_components {
-  id: "f_bg_sky"
+  id: "f_veh_moto_paint"
   type: "factory"
-  data: "prototype: \"/entities/bg_sky.go\"\n"
+  data: "prototype: \"/entities/veh_moto_paint.go\"\n"
 }
 embedded_components {
-  id: "f_bg_mountains"
+  id: "f_veh_car_paint"
   type: "factory"
-  data: "prototype: \"/entities/bg_mountains.go\"\n"
+  data: "prototype: \"/entities/veh_car_paint.go\"\n"
+}
+embedded_components {
+  id: "f_veh_truck_paint"
+  type: "factory"
+  data: "prototype: \"/entities/veh_truck_paint.go\"\n"
 }

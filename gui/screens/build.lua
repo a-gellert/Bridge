@@ -33,13 +33,24 @@ function M.refresh(app)
 	for id, b in pairs(h.mats) do
 		local sel = session.tool == "build" and session.material == id
 		gui.set_color(b.node, sel and ui.YELLOW or ui.PANEL_LT)
-		gui.set_enabled(b.sel, sel)
+		-- dark text on the yellow selected tile (white on yellow is unreadable)
+		gui.set_color(b.price, sel and ui.INK or ui.WHITE)
+		gui.set_outline(b.price, sel and ui.CLEAR or ui.INK)
+		gui.set_color(b.len, sel and ui.hex("#5A4A12") or ui.DIM)
+		gui.set_outline(b.len, sel and ui.CLEAR or ui.INK)
 	end
 	if h.erase then gui.set_color(h.erase, session.tool == "erase" and ui.RED or ui.PANEL_LT) end
 	for id, node in pairs(h.vehs) do
 		gui.set_color(node, session.vehicle == id and ui.BLUE or ui.PANEL_LT)
 	end
 	if h.undo_btn then h.undo_btn:set_enabled(bp:can_undo()) end
+	if h.clear_node then
+		local n = bp:beam_count()
+		-- an armed clear only applies to the bridge it was armed on
+		if h.clear_armed and n ~= h.clear_count then h.clear_armed = nil end
+		local c = h.clear_armed and ui.RED or ui.PANEL_LT
+		gui.set_color(h.clear_node, vmath.vector4(c.x, c.y, c.z, n == 0 and 0.45 or 1))
+	end
 end
 
 local function toggle_erase(app)
@@ -60,28 +71,28 @@ end
 local function mat_button(app, parent, x, y, w, bh, m)
 	local node = ui.box(parent, "btn", x, y, w, bh, ui.PANEL_LT)
 	gui.set_slice9(node, vmath.vector4(16, 16, 16, 24))
-	local sel = ui.panel(node, 0, 0, w + 8, bh + 8, ui.hex("#FFFFFF", 0.0), 20)
-	local ic = ui.box(node, m.icon, 0, bh * 0.16, math.min(w - 12, 84), math.min(w - 12, 84) * 0.66)
-	ui.label(node, "$" .. m.cost, 0, -bh * 0.2, 24, ui.WHITE, w - 8)
-	ui.label(node, m.max_len .. "m", 0, -bh * 0.38, 18, ui.DIM, w - 8)
+	ui.icon(node, m.icon, 0, bh * 0.16, math.min(w - 12, 84))
+	local price = ui.label(node, "$" .. m.cost, 0, -bh * 0.2, 24, ui.WHITE, w - 8)
+	local len = ui.label(node, m.max_len .. "m", 0, -bh * 0.38, app.portrait and 22 or 18, ui.DIM, w - 8)
 	if m.unlock == session.index then
-		local badge = ui.panel(node, w / 2 - 14, bh / 2 - 8, 56, 26, ui.RED, 12)
-		ui.text(badge, "NEW", 0, 1, 18, ui.WHITE)
-		ui.pulse(badge, 1.12, 0.5)
+		-- sticker inside the tile's corner (it used to hang over the neighbouring button)
+		local bw2, bh2 = app.portrait and 52 or 44, app.portrait and 26 or 22
+		local badge = ui.panel(node, w / 2 - bw2 / 2 - 4, bh / 2 - bh2 / 2 - 4, bw2, bh2, ui.RED, 10)
+		ui.text(badge, "NEW", 0, 1, app.portrait and 18 or 15, ui.WHITE)
+		ui.pulse(badge, 1.1, 0.5)
 	end
 	ui.button(node, function()
 		session.select_material(m.id)
 		M.refresh(app)
 	end)
-	h.mats[m.id] = { node = node, sel = sel }
-	gui.set_enabled(sel, false)
+	h.mats[m.id] = { node = node, price = price, len = len }
 	return node
 end
 
 local function veh_button(app, parent, x, y, w, bh, v)
 	local node = ui.box(parent, "btn", x, y, w, bh, ui.PANEL_LT)
 	gui.set_slice9(node, vmath.vector4(16, 16, 16, 24))
-	ui.icon(node, v.icon, 0, bh * 0.15, math.min(w - 12, 60))
+	ui.vehicle(node, v.id, 0, bh * 0.14, w - 8)
 	for i = 1, 3 do
 		ui.icon(node, i <= v.stars and "star" or "star_slot", (i - 2) * 20, -bh * 0.3, 20, i <= v.stars and ui.STAR or ui.STAR_OFF)
 	end
@@ -112,64 +123,84 @@ function M.build(app, root)
 	local ml, mr, mt, mb = layout.margins(vw, vh, 14)
 	local m = ml
 	local lvl = session.level
-	local stacked = app.portrait or vw < 1180
+	-- the top bar needs ~1180 units for one row; the bottom bar only as much as its buttons take,
+	-- so 4:3 / 16:10 screens keep a single bottom row and more room for the bridge
+	local mats = session.available_materials()
+	local nm = #mats + 1 -- + eraser
+	local tstk = app.portrait or vw < 1180
+	local stacked = app.portrait or vw < ml + mr + 590 + nm * 70
 	local top_w = vw - ml - mr
 
 	-- ---------------------------------------------------------- top bar
-	local top_h = stacked and 150 or 88
+	-- portrait buttons are taller: a virtual unit is about half a CSS pixel on a phone
+	local top_h = tstk and 168 or 88
 	local top = ui.panel(root, vw / 2, vh - mt - top_h / 2, top_w, top_h, ui.PANEL, 22)
 	ui.blocker(top)
 	local tw = top_w
-	local row1 = stacked and top_h / 2 - 42 or 0
-	ui.btn(top, -tw / 2 + 50, row1, 80, 68, "", function()
+	-- touch screens get 72-unit buttons in any orientation (a phone held sideways is just as small)
+	local bh_top = (tstk or app.touch) and 72 or 62
+	local row1 = tstk and top_h / 2 - 44 or 0
+	ui.btn(top, -tw / 2 + (tstk and 54 or 50), row1, tstk and 88 or 80, math.max(bh_top, 68), "", function()
 		session.exit_to_menu()
 	end, { icon = "home", icon_size = 40 })
 	local title = lvl.id .. "  " .. i18n.pick(lvl.name)
 	local stars = progress.stars(lvl.id)
-	if stacked then
-		ui.label(top, title, -tw / 2 + 100, row1, 32, ui.WHITE, tw - 330, 1, gui.PIVOT_W)
-		ui.stars(top, tw / 2 - 160, row1, 30, stars, 32)
-		local hint_node = ui.btn(top, tw / 2 - 50, row1, 80, 68, "", function() hint(app) end, { icon = "hint", icon_size = 40, color = ui.ORANGE })
-		h.hint_btn = hint_node
+	-- rewarded hint: an ad marker in the corner tells the player a video plays
+	local function hint_button(x, y, w, bh, isz)
+		local node = ui.btn(top, x, y, w, bh, "", function() hint(app) end, { icon = "hint", icon_size = isz, color = ui.ORANGE })
+		local badge = ui.box(node, "circle", w / 2 - 13, bh / 2 - 12, 24, 24, ui.PURPLE)
+		ui.icon(badge, "video", 0, 0, 16, ui.WHITE)
+		h.hint_btn = node
 		if progress.fail_streak(lvl.id) >= 3 then
-			gui.set_color(hint_node, ui.YELLOW)
-			ui.pulse(hint_node, 1.12, 0.55)
+			gui.set_color(node, ui.YELLOW)
+			ui.pulse(node, 1.12, 0.55)
 		end
+	end
+	if tstk then
+		ui.label(top, title, -tw / 2 + 108, row1, 32, ui.WHITE, tw - 340, 1, gui.PIVOT_W)
+		ui.stars(top, tw / 2 - 168, row1, 30, stars, 32)
+		hint_button(tw / 2 - 54, row1, 88, 72, 42)
 	else
-		ui.label(top, title, -tw / 2 + 100, 0, 32, ui.WHITE, tw * 0.3, 1, gui.PIVOT_W)
-		ui.stars(top, -tw / 2 + 100 + tw * 0.3 + 60, 0, 30, stars, 32)
+		-- stars follow the title; the title zone is capped so they never reach the budget pill
+		local title_w = math.min(tw * 0.26, 360)
+		ui.label(top, title, -tw / 2 + 100, 0, 32, ui.WHITE, title_w, 1, gui.PIVOT_W)
+		ui.stars(top, -tw / 2 + 100 + title_w + 60, 0, 30, stars, 32)
 	end
 	-- budget pill
-	local row2 = stacked and -top_h / 2 + 40 or 0
-	local bw = stacked and (tw - 210) or math.min(460, tw * 0.32)
-	local bx = stacked and (-tw / 2 + 12 + bw / 2) or (tw / 2 - 250 - bw / 2)
+	local row2 = tstk and -top_h / 2 + 44 or 0
+	local bw = tstk and (tw - 236) or math.min(460, tw * 0.3)
+	local bx = tstk and (-tw / 2 + 12 + bw / 2) or (tw / 2 - 266 - bw / 2)
 	local pill = ui.panel(top, bx, row2, bw, 62, ui.hex("#151926", 0.8), 26)
 	ui.icon(pill, "coin", -bw / 2 + 32, 0, 40, ui.STAR)
 	h.budget_txt, h.budget_comp = ui.label(pill, "", 14, 10, 26, ui.WHITE, bw - 90)
-	h.budget_bar = ui.bar(pill, 14, -16, bw - 90, 12, ui.GREEN)
-	-- undo / clear (/ hint in landscape)
-	local bx2 = stacked and (tw / 2 - 150) or (tw / 2 - 210)
-	local _, ub = ui.btn(top, bx2, row2, 80, 62, "", function()
+	h.budget_bar = ui.bar(pill, 14, -16, bw - 90, 12, ui.GREEN, ui.hex("#3A4360", 0.95))
+	-- undo / clear (/ hint in landscape); clear needs a second tap within 2 s
+	local bw_btn = tstk and 88 or 80
+	local bx2 = tstk and (tw / 2 - 166) or (tw / 2 - 210)
+	local _, ub = ui.btn(top, bx2, row2, bw_btn, bh_top, "", function()
 		session.undo() -- the "erased" event plays the sound
 		M.refresh(app)
 	end, { icon = "undo", icon_size = 38 })
 	h.undo_btn = ub
-	ui.btn(top, bx2 + 92, row2, 80, 62, "", function()
-		session.clear()
-		M.refresh(app)
-	end, { icon = "trash", icon_size = 38 })
-	if not stacked then
-		local hint_node = ui.btn(top, tw / 2 - 26 - 4, row2, 52 + 8, 62, "", function() hint(app) end, { icon = "hint", icon_size = 36, color = ui.ORANGE })
-		h.hint_btn = hint_node
-		if progress.fail_streak(lvl.id) >= 3 then
-			gui.set_color(hint_node, ui.YELLOW)
-			ui.pulse(hint_node, 1.12, 0.55)
+	local clear_node
+	clear_node = ui.btn(top, bx2 + bw_btn + (tstk and 16 or 12), row2, bw_btn, bh_top, "", function()
+		if session.blueprint:beam_count() == 0 then return end
+		if h.clear_armed and h.clear_armed > 0 then
+			h.clear_armed = nil
+			session.clear()
+			M.refresh(app)
+		else
+			h.clear_armed, h.clear_count = 2, session.blueprint:beam_count()
+			M.refresh(app)
+			app.toast(i18n.t("clear_confirm"), ui.RED)
 		end
+	end, { icon = "trash", icon_size = 38 })
+	h.clear_node = clear_node
+	if not tstk then
+		hint_button(tw / 2 - 30, row2, 60, bh_top, 36)
 	end
 
 	-- ---------------------------------------------------------- bottom
-	local mats = session.available_materials()
-	local nm = #mats + 1 -- + eraser
 	local bottom_h, mat_row_y, veh_row_y
 	if stacked then
 		bottom_h = 252
@@ -206,23 +237,29 @@ function M.build(app, root)
 	local ex = mx0 + mb_w / 2 + #mats * (mb_w + 8)
 	local enode = ui.box(root, "btn", ex, mat_row_y, mb_w, mb_h, ui.PANEL_LT)
 	gui.set_slice9(enode, vmath.vector4(16, 16, 16, 24))
-	ui.icon(enode, "eraser", 0, 10, math.min(56, mb_w - 20))
-	ui.label(enode, i18n.t("erase"), 0, -mb_h * 0.34, 18, ui.WHITE, mb_w - 8)
+	ui.icon(enode, "eraser", 0, mb_h * 0.16, math.min(mb_w - 12, 84))
+	ui.label(enode, i18n.t("erase"), 0, -mb_h * 0.26, 20, ui.WHITE, mb_w - 8)
 	ui.button(enode, function() toggle_erase(app) end)
 	h.erase = enode
 
 	-- HUD covers the screen top/bottom: tell the camera so the bridge stays in the free area
 	camera.set_insets((top_h + mt + 6) / vh, (bottom_h + mb + 6) / vh)
+	h.free_lo, h.free_hi = mb + bottom_h + 34, vh - mt - top_h - 34
+	app.hud_bottom = mb + bottom_h -- toasts sit just above the bottom bar
 
 	-- quick "fit the whole build zone" button (after panning / zooming away)
-	ui.round(root, ml + 42, mb + bottom_h + 50, 62, "fit", function()
+	local fit_size = (app.portrait or app.touch) and 80 or 62
+	ui.round(root, ml + 11 + fit_size / 2, mb + bottom_h + 19 + fit_size / 2, fit_size, "fit", function()
 		local a = session.level.area or { session.level.start, -4, session.level.finish, 6 }
 		camera.fit(a[1] - 1.5, a[2] - 1, a[3] + 1.5, a[4] + 1.5, false)
 	end, { color = ui.PANEL, icon_size = 30 })
 
 	-- ghost info label (length / price / error), positioned every frame
+	-- one line for "3.0m $120", a wider two-line box for errors (they are long sentences)
 	h.info = ui.panel(root, 0, 0, 220, 50, ui.hex("#151926", 0.85), 20)
 	h.info_txt, h.info_comp = ui.label(h.info, "", 0, 2, 26, ui.WHITE, 200)
+	h.err_w = math.min(420, vw - 40)
+	h.err_txt, h.err_comp = ui.label(h.info, "", 0, 2, 24, ui.WHITE, h.err_w - 28, 2)
 	gui.set_enabled(h.info, false)
 
 	-- tip banner: early levels teach only after the player has actually fallen.
@@ -236,10 +273,12 @@ function M.build(app, root)
 	if tip_text and not app.tip_shown[lvl.id] then
 		app.tip_shown[lvl.id] = true
 		local tw2 = math.min(760, vw - 40)
-		local tip = ui.panel(root, vw / 2, vh - mt - top_h - 70, tw2, 110, ui.hex("#FFF6D6", 0.97), 22)
-		ui.icon(tip, "hint", -tw2 / 2 + 44, 0, 52, ui.ORANGE)
-		local tip_label = ui.label(tip, tip_text, 30, 0, 26, ui.INK, tw2 - 120, 3)
-		gui.set_outline(tip_label, ui.CLEAR)
+		-- same dark panel family as the HUD; an orange edge and bulb tie it to the hint button
+		local tip = ui.panel(root, vw / 2, vh - mt - top_h - 70, tw2, 110, ui.hex("#262D40", 0.97), 22)
+		ui.panel(tip, -tw2 / 2 + 6, 0, 12, 110, ui.ORANGE, 6)
+		ui.box(tip, "circle", -tw2 / 2 + 50, 0, 64, 64, ui.hex("#FF8A1C", 0.18))
+		ui.icon(tip, "hint", -tw2 / 2 + 50, 0, 46, ui.ORANGE)
+		ui.label(tip, tip_text, 36, 0, 26, ui.WHITE, tw2 - 130, 3)
 		ui.fade_in(tip, 0.3, 0.2)
 		h.tip = tip
 		h.tip_t = 9
@@ -251,24 +290,34 @@ end
 
 function M.update(app, dt)
 	if not h.root then return end
-	-- ghost label near the beam end
+	if h.clear_armed then
+		h.clear_armed = h.clear_armed - dt
+		if h.clear_armed <= 0 then
+			h.clear_armed = nil
+			M.refresh(app)
+		end
+	end
+	-- ghost label near the beam end, kept in the free band between the top bar and the bottom bar
 	local p = session.preview
 	if p and h.info then
 		local sx, sy = camera.world_to_screen(p.x2, p.y2, 1.3)
+		local w, bh = 220, 50
+		if not p.ok then w, bh = h.err_w, 74 end
 		local x, y = sx / app.px_scale, sy / app.px_scale + 70
-		x = math.max(120, math.min(app.vw - 120, x))
-		y = math.max(60, math.min(app.vh - 60, y))
+		x = math.max(w / 2 + 10, math.min(app.vw - w / 2 - 10, x))
+		y = math.max(h.free_lo or 60, math.min(h.free_hi or (app.vh - 60), y))
 		gui.set_position(h.info, V3(x, y, 0))
+		gui.set_size(h.info, V3(w, bh, 0))
 		local len = math.sqrt((p.x2 - p.x1) ^ 2 + (p.y2 - p.y1) ^ 2)
-		local txt
 		if p.ok then
-			txt = string.format("%.1fm  $%s", len, i18n.money(p.cost))
+			ui.set_label(h.info_txt, h.info_comp, string.format("%.1fm  $%s", len, i18n.money(p.cost)))
 			gui.set_color(h.info, ui.hex("#151926", 0.85))
 		else
-			txt = i18n.t("err_" .. tostring(p.err))
+			ui.set_label(h.err_txt, h.err_comp, i18n.t("err_" .. tostring(p.err)))
 			gui.set_color(h.info, ui.hex("#8A1F24", 0.92))
 		end
-		ui.set_label(h.info_txt, h.info_comp, txt)
+		gui.set_enabled(h.info_txt, p.ok)
+		gui.set_enabled(h.err_txt, not p.ok)
 		gui.set_enabled(h.info, true)
 	elseif h.info then
 		gui.set_enabled(h.info, false)

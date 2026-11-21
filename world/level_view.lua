@@ -365,41 +365,55 @@ function M.build(level)
 			sun_scale = 10.5
 		end
 		-- glowing sun corona + core
+		-- the disc faces the camera, so voxel lighting would grey it out: overlay paints it flat
 		local corona = add(gos, spawn.create("portal_glow", sun_x, sun_y, -148, 0, sun_scale * 1.5, sun_scale * 1.5, 1))
-		spawn.tint(corona, sun_color[1], sun_color[2], sun_color[3], 0.38)
+		spawn.tint(corona, 1, 1, 1, 0.3)
+		spawn.overlay(corona, sun_color[1] * 1.2, sun_color[2] * 1.2, sun_color[3] * 1.2, 1)
 		local core = add(gos, spawn.create("portal_glow", sun_x, sun_y, -147, 0, sun_scale * 0.9, sun_scale * 0.9, 1))
-		spawn.tint(core, 1.0, 1.0, 1.0, 0.85)
+		spawn.tint(core, 1, 1, 1, 0.92)
+		spawn.overlay(core, 1.2, 1.18, 1.1, 1)
 	end
 
-	if theme.parallax_bg then
-		-- Two Dots minimalist mountains panorama (Z=-112) over the clean procedural sky
-		local mnt_w, mnt_h = 260, 130
-		local mnt_obj = add(gos, spawn.create("bg_mountains", (ex0 + ex1) * 0.5, kill + 8, -112, 0, mnt_w, mnt_h, 1))
-		spawn.tint(mnt_obj, 1, 1, 1, 1)
-	else
-		-- ---------------------------------------------------------- background mountains (aerial perspective)
-		local far = mix(theme.far, theme.sky, 0.68)
-		local mid = mix(theme.far, theme.sky, 0.44)
-		local near = mix(theme.far, theme.sky, 0.32)
-		local spans = ex1 - ex0 + 180
-		-- three separate layers of ridges: the lightest and tallest sits farthest back
-		for i = 0, 8 do
-			local x = ex0 - 80 + spans * (i + rand() * 0.7) / 9
-			local s = 13 + rand() * 11
-			local m = add(gos, spawn.create("mountain", x, kill - 8 + rand() * 2, -136 - rand() * 10, 0, s * 2.6, s, s * 1.25))
-			spawn.tint_rgb(m, far)
-		end
-		for i = 0, 5 do
-			local x = ex0 - 55 + (ex1 - ex0 + 110) * (i + rand() * 0.8) / 6
-			local s = 7 + rand() * 5
-			local m = add(gos, spawn.create("mountain", x, kill - 7 + rand() * 1.5, -96 - rand() * 14, 0, s * 2.7, s, s * 1.2))
-			spawn.tint_rgb(m, mid)
-		end
-		for i = 0, 4 do
-			local x = ex0 - 30 + (ex1 - ex0 + 60) * (i + rand() * 0.8) / 5
-			local s = 2.6 + rand() * 2.6
-			local m = add(gos, spawn.create("mountain", x, kill - 5 + rand() * 1.2, -68 - rand() * 10, 0, s * 2.9, s, s * 1.15))
-			spawn.tint_rgb(m, near)
+	-- ---------------------------------------------------------- background mountains (aerial perspective)
+	-- Every chapter uses the same low-poly peaks, tinted by its theme: the farther the ridge, the
+	-- closer its colour is to the sky. An optional dark forest strip sits in front of them.
+	local far = mix(theme.far, theme.sky, 0.62)
+	local mid = mix(theme.far, theme.sky, 0.38)
+	local near = mix(theme.far, theme.sky, 0.18)
+	local spans = ex1 - ex0 + 180
+	-- the backdrop is anchored to the banks (not the water), so every level frames it the same way
+	local bg_geo = terrain.build(level)
+	local hs0, hf0 = terrain.height_at(bg_geo, level.start), terrain.height_at(bg_geo, level.finish)
+	local bank = ((hs0 or hf0 or kill + 10) + (hf0 or hs0 or kill + 10)) * 0.5
+	local base = math.min(bank - 10, kill)
+	-- three separate layers of ridges: the lightest and tallest sits farthest back
+	for i = 0, 8 do
+		local x = ex0 - 80 + spans * (i + rand() * 0.7) / 9
+		local s = 18 + rand() * 12
+		local m = add(gos, spawn.create("mountain", x, base - 6 + rand() * 2, -136 - rand() * 10, 0, s * 1.9, s, s * 1.25))
+		spawn.tint_rgb(m, far)
+	end
+	for i = 0, 6 do
+		local x = ex0 - 55 + (ex1 - ex0 + 110) * (i + rand() * 0.8) / 7
+		local s = 11 + rand() * 6
+		local m = add(gos, spawn.create("mountain", x, base - 4 + rand() * 1.5, -96 - rand() * 14, 0, s * 2.0, s, s * 1.2))
+		spawn.tint_rgb(m, mid)
+	end
+	for i = 0, 4 do
+		local x = ex0 - 30 + (ex1 - ex0 + 60) * (i + rand() * 0.8) / 5
+		local s = 5 + rand() * 3
+		local m = add(gos, spawn.create("mountain", x, base - 1 + rand() * 1.2, -68 - rand() * 10, 0, s * 2.2, s, s * 1.15))
+		spawn.tint_rgb(m, near)
+	end
+	if theme.forest then
+		local fc = mix(theme.forest, theme.sky, 0.16)
+		local fspan = ex1 - ex0 + 120
+		local n = math.ceil(fspan / 13)
+		for i = 0, n - 1 do
+			local x = ex0 - 60 + (i + 0.5) * fspan / n + (rand() - 0.5) * 3
+			local s = 15 + rand() * 4
+			local f = add(gos, spawn.create("forest", x, bank - 5.5 + rand() * 1.2, -50 - rand() * 4, 0, s, s * (0.4 + rand() * 0.18), 1))
+			spawn.tint_rgb(f, fc)
 		end
 	end
 
@@ -562,7 +576,7 @@ function M.build(level)
 	end
 
 	-- ---------------------------------------------------------- flags
-	local geo = terrain.build(level)
+	local geo = bg_geo -- built once, above, for the backdrop anchor
 	local hs = terrain.height_at(geo, level.start - 3) or 0
 	add(gos, spawn.create("flag_start", level.start - 3, hs, 0))
 	local hf = terrain.height_at(geo, level.finish) or 0
@@ -670,8 +684,9 @@ function M.build(level)
 		for x = ex0, ex1, step do
 			for y = -3, 12, step do
 				local p = add(gos, spawn.create("lab_panel", x, y, -9.0, 0, s, s, 1))
-				local g = 0.9 + rand() * 0.1
-				spawn.tint(p, g, g, g * 1.02, 1)
+				-- darker and cooler than the terrain so the floor and the bridge stand out
+				local g = 0.64 + rand() * 0.06
+				spawn.tint(p, g * 0.94, g * 0.98, g * 1.08, 1)
 			end
 		end
 	end

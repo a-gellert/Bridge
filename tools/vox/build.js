@@ -2,6 +2,7 @@
 //   node tools/vox/build.js                  # every supported procedural model -> assets/vox/*.vox + assets/models/*.gltf
 //   node tools/vox/build.js --only=veh_car,wheel_car
 //   node tools/vox/build.js --preview        # also render build/vox_previews/<id>.png
+//   node tools/vox/build.js --blender        # also voxelise the Blender .glb decor (except fauna)
 //
 // Dynamic / stretched helper models (terrain tiles, water, overlays) stay procedural: they are
 // scaled or sliced by world/level_view.lua and a voxel grid would be distorted.
@@ -29,6 +30,7 @@ const SKIP = new Set([
   "water", "water_top", "water_wave", // tiled / animated alpha surfaces
   "sky_band", // unlit gradient quad
   "zone", "grid_dots", "select_ring", "shadow", "portal_glow", // build-mode / fx overlays
+  "mountain", "forest", // 30-60 m background silhouettes: crisp low poly reads better than voxel stairs
 ]);
 
 function bbox(mesh) {
@@ -59,13 +61,19 @@ function pickCell(id, ext) {
   return 0.07;
 }
 
+// --blender voxelises the Blender hero decor too (assets/models/<id>.glb stays the source), so the
+// whole world shares one voxel language. Small fauna keeps its smooth .glb (thin wings would fall
+// between voxels), and so do the portals: their thin glowing ring turns into voxel noise.
+const withBlender = argv.includes("--blender");
+const FAUNA = new Set(["bird", "butterfly", "portal_blue", "portal_orange"]);
 const ids = Object.keys(models).filter((id) => !SKIP.has(id) && !blender.set.has(id));
+if (withBlender) for (const id of blender.ids) if (!FAUNA.has(id)) ids.push(id);
 const selected = only ? ids.filter((id) => only.split(",").includes(id)) : ids;
 let totalTris = 0;
 let totalVoxels = 0;
 const rows = [];
 for (const id of selected) {
-  const mesh = models[id]();
+  const mesh = blender.set.has(id) ? pipeline.readGlb(ROOT, id) : models[id]();
   const { ext } = bbox(mesh);
   const cell = pickCell(id, ext) * cellScale;
   const t0 = Date.now();

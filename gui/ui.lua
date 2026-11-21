@@ -3,6 +3,10 @@
 local druid = require("druid.druid")
 local druid_style = require("gui.druid_style")
 local audio = require("platform.audio")
+local icon_sizes = require("gui.icon_sizes")
+local skins = require("game.config.skins")
+local vehicles = require("game.config.vehicles")
+local progress = require("game.core.progress")
 
 local M = {}
 
@@ -20,7 +24,7 @@ M.hex = hex
 M.WHITE = V4(1, 1, 1, 1)
 M.CLEAR = V4(1, 1, 1, 0)
 M.INK = hex("#1B2030")
-M.PANEL = hex("#262D40", 0.92)
+M.PANEL = hex("#262D40", 0.96)
 M.PANEL_LT = hex("#39425E", 0.96)
 M.CARD = hex("#323A52", 1)
 M.DIM = hex("#A9B3C9")
@@ -31,7 +35,7 @@ M.RED = hex("#E5484D")
 M.BLUE = hex("#3E8EF7")
 M.PURPLE = hex("#8E6CF0")
 M.STAR = hex("#FFD23F")
-M.STAR_OFF = hex("#4A536D")
+M.STAR_OFF = hex("#7D87A8")
 
 M.druid = nil
 M.context = nil
@@ -114,8 +118,52 @@ function M.set_label(n, comp, str)
 	if comp then comp:set_text(str) else gui.set_text(n, str) end
 end
 
+-- Icon fitted into a size x size box, keeping the image's aspect ratio (gui/icon_sizes.lua).
 function M.icon(parent, image, x, y, size, color)
-	return M.box(parent, image, x, y, size, size, color)
+	local s = icon_sizes[image]
+	local w, h = size, size
+	if s and s[1] ~= s[2] then
+		if s[1] > s[2] then h = size * s[2] / s[1] else w = size * s[1] / s[2] end
+	end
+	return M.box(parent, image, x, y, w, h, color)
+end
+
+local function rgba(t)
+	return t and vmath.vector4(t[1], t[2], t[3], 1) or M.WHITE
+end
+
+-- Vehicle preview stacked from the garage layers (tools/gen/ui.js renders them in one frame):
+-- outline, body, the white paint layer coloured with the paint, wheels tinted by the wheel skin,
+-- then the topper — the same recipe the world uses on the models. `sk` overrides the
+-- player's current choice per kind: { body = item, wheel = item, topper = item } (skins.lua items).
+-- Returns the holder node; `w` is the preview width (height follows the image aspect).
+function M.vehicle(parent, vehicle_id, x, y, w, sk)
+	sk = sk or {}
+	local function pick(kind)
+		return sk[kind] or skins.get(kind, progress.skin_for(kind, vehicle_id))
+	end
+	local body, wheel, topper = pick("body"), pick("wheel"), pick("topper")
+	local g = "gv_" .. vehicle_id
+	local ref = icon_sizes[g .. "_sil"]
+	assert(ref, "ui.vehicle: no garage layers for vehicle '" .. tostring(vehicle_id) .. "'")
+	local k = w / ref[5]
+	local h = ref[6] * k
+	local holder = M.pane(parent, x, y)
+	-- layers are trimmed to their opaque box: place each at its offset inside the shared frame
+	local function layer(name, color)
+		local s = icon_sizes[name]
+		if not s then return end
+		local cx = (s[3] + s[1] / 2 - s[5] / 2) * k
+		local cy = -(s[4] + s[2] / 2 - s[6] / 2) * k
+		M.box(holder, name, cx, cy, s[1] * k, s[2] * k, color)
+	end
+	layer(g .. "_sil")
+	layer(g .. "_body")
+	layer(g .. "_paint", rgba(skins.paint_color(vehicles.get(vehicle_id), body)))
+	local big = wheel and wheel.scale and wheel.scale > 1
+	layer(g .. (big and "_wheel_xl" or "_wheel"), rgba(wheel and wheel.tint))
+	if topper and topper.visual then layer(g .. "_" .. topper.id, rgba(topper.tint)) end
+	return holder, h
 end
 
 function M.delete(n)
@@ -174,8 +222,19 @@ end
 -- Horizontal bar; returns { bg, fill, w } (fill scales from the left edge).
 function M.bar(parent, x, y, w, h, color, bg)
 	local holder = M.pane(parent, x, y)
-	local back = M.panel(holder, 0, 0, w, h, bg or M.hex("#151926", 0.9), h / 2)
-	local fill = M.panel(holder, -w / 2, 0, w, h, color or M.GREEN, h / 2)
+	-- thin bars use the 12 px capsule image (round ends at any length); thick ones the panel
+	local function shape(node_color, px)
+		local n
+		if h <= 14 then
+			n = M.box(holder, "pill", px, 0, w, h, node_color)
+			gui.set_slice9(n, V4(6, 6, 6, 6))
+		else
+			n = M.panel(holder, px, 0, w, h, node_color, h / 2)
+		end
+		return n
+	end
+	local back = shape(bg or M.hex("#151926", 0.9), 0)
+	local fill = shape(color or M.GREEN, -w / 2)
 	gui.set_pivot(fill, gui.PIVOT_W)
 	return { holder = holder, bg = back, fill = fill, w = w, h = h }
 end

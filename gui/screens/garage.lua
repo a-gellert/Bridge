@@ -15,7 +15,7 @@ local haptics = require("platform.haptics")
 
 local M = {}
 
-local KIND_ICON = { body = "circle", wheel = "ring", topper = "star" }
+local KIND_ICON = { body = "paint", wheel = "tire", topper = "hat" }
 
 local function announce(list)
 	for _, a in ipairs(list or {}) do
@@ -23,8 +23,8 @@ local function announce(list)
 	end
 end
 
-local function tint_of(item)
-	local t = item.tint or { 1, 1, 1 }
+local function tint_of(item, vehicle)
+	local t = item.kind == "body" and skins.paint_color(vehicles.get(vehicle), item) or item.tint or { 1, 1, 1 }
 	return ui.hex(string.format("#%02X%02X%02X",
 		math.floor(math.max(0, math.min(1, t[1])) * 255 + 0.5),
 		math.floor(math.max(0, math.min(1, t[2])) * 255 + 0.5),
@@ -100,31 +100,38 @@ local function card(app, root, x, y, w, h, kind, vehicle, item)
 	local is_sel = selected(vehicle, kind, item)
 	local unlocked = is_owned or is_sel
 	local panel = ui.panel(root, x, y, w, h, is_sel and ui.hex("#2C4B39") or (is_owned and ui.CARD or ui.hex("#232838")), 20)
-	-- colour swatch / generic icon
-	local sw = math.min(w - 30, h * 0.4, 84)
-	local icon_y = h / 2 - sw / 2 - 10
-	local icon = ui.box(panel, "circle", 0, icon_y, sw, sw,
-		(kind == "topper" and not item.visual) and ui.hex("#4A536D") or tint_of(item))
-	if kind == "topper" and item.visual then
-		ui.icon(panel, KIND_ICON[kind], 0, icon_y, sw * 0.62, ui.WHITE)
+	-- the vehicle itself wearing this item (the other two kinds stay as currently equipped)
+	local pw = math.min(w - 16, (h - 80) * 1.62) -- leaves room for the two text rows below
+	local preview, ph = ui.vehicle(panel, vehicle, 0, 0, pw, { [kind] = item })
+	gui.set_position(preview, vmath.vector3(0, h / 2 - 8 - ph / 2, 0))
+	if not unlocked then gui.set_color(preview, ui.hex("#FFFFFF", 0.82)) end
+	-- corner swatch: the paint colour, or a close-up of the wheel (small on the whole vehicle)
+	if kind == "body" then
+		ui.box(panel, "circle", -w / 2 + 22, h / 2 - 22, 28, 28, ui.INK)
+		ui.box(panel, "circle", -w / 2 + 22, h / 2 - 22, 22, 22, tint_of(item, vehicle))
+	elseif kind == "wheel" then
+		ui.box(panel, "circle", -w / 2 + 28, h / 2 - 28, 48, 48, ui.hex("#5C6684", 1))
+		ui.icon(panel, "gw_" .. vehicle, -w / 2 + 28, h / 2 - 28, 38 * math.min(1.15, item.scale or 1), tint_of(item, vehicle))
 	end
-	ui.label(panel, i18n.pick(item.name), 0, -h / 2 + 36, 21, unlocked and ui.WHITE or ui.DIM, w - 14)
+	ui.label(panel, i18n.pick(item.name), 0, -h / 2 + 46, app.portrait and 24 or 22, unlocked and ui.WHITE or ui.hex("#C9D0E0"), w - 14)
 	local u = skins.unlock(item)
 	local tag
+	local color = ui.YELLOW
 	if is_sel then
-		tag = i18n.t("selected")
+		tag, color = i18n.t("selected"), ui.GREEN
 	elseif is_owned then
-		tag = i18n.t("equip")
+		tag, color = i18n.t("equip"), ui.hex("#8DB8FF")
 	elseif u.kind == "price" then
 		tag = i18n.f("unlock_price", i18n.money(u.value))
+		-- a price the wallet cannot pay yet reads as unavailable
+		if progress.wallet() < u.value then color = ui.hex("#FF8A8E") end
 	elseif u.kind == "stars" then
 		tag = item.chapter and i18n.t("unlock_chapter") or i18n.f("unlock_stars", u.value)
 	elseif u.kind == "rewarded" then
-		tag = i18n.t("unlock_rewarded")
+		tag, color = i18n.t("unlock_rewarded"), ui.hex("#B9A4FF")
 	end
 	if tag then
-		ui.text(panel, tag, 0, -h / 2 + 20, 17,
-			is_sel and ui.GREEN or (is_owned and ui.BLUE or (u.kind == "rewarded" and ui.PURPLE or ui.YELLOW)))
+		ui.label(panel, tag, 0, -h / 2 + 19, app.portrait and 20 or 18, color, w - 16)
 	end
 	if u.kind == "rewarded" and not is_owned then
 		ui.icon(panel, "video", w / 2 - 20, h / 2 - 18, 24, ui.PURPLE)
@@ -148,45 +155,47 @@ function M.build(app, root)
 	-- top bar
 	local top = ui.panel(root, vw / 2, vh - mt - top_h / 2, top_w, top_h, ui.PANEL, 22)
 	ui.blocker(top)
-	ui.btn(top, -top_w / 2 + 66, 0, 112, 64, "", function() app.show("menu") end, { icon = "back", icon_size = 38 })
+	ui.btn(top, -top_w / 2 + 66, 0, 112, app.touch and 72 or 64, "", function() app.show("menu") end, { icon = "back", icon_size = 38 })
 	ui.text(top, i18n.t("garage"), 0, 2, 38, ui.WHITE)
 	local wallet = ui.panel(top, top_w / 2 - 130, 0, 230, 60, ui.hex("#151926", 0.8), 26)
 	ui.icon(wallet, "coin", -84, 2, 38, ui.STAR)
 	ui.text(wallet, "$" .. i18n.money(progress.wallet()), 20, 2, 28, ui.WHITE)
 
-	-- vehicle tabs
+	-- vehicle tabs (same column widths as the category tabs below, so the two rows line up)
 	local vgap = 10
-	local vw3 = math.min(220, (top_w - 2 * vgap) / 3)
-	local vy = vh - mt - top_h - 50
+	local vw3 = math.min(250, (top_w - 2 * vgap) / 3)
+	-- touch screens get taller tabs; the two rows keep a clear gap so a tap never hits the wrong row
+	local tab_h, kind_h = app.touch and 80 or 72, app.touch and 76 or 64
+	local vy = vh - mt - top_h - 14 - tab_h / 2
 	for i, v in ipairs(vehicles.list) do
 		local x = vw / 2 + (i - 2) * (vw3 + vgap)
 		local sel = v.id == vehicle
-		local node = ui.btn(root, x, vy, vw3, 72, i18n.t(v.name_key), function()
+		local node = ui.btn(root, x, vy, vw3, tab_h, i18n.t(v.name_key), function()
 			app.garage_vehicle = v.id
 			app.rebuild()
-		end, { icon = v.icon, icon_size = 34, color = sel and ui.BLUE or ui.PANEL_LT, size = 22 })
+		end, { icon = v.icon, icon_size = 58, color = sel and ui.BLUE or ui.PANEL_LT, size = 22 })
 		ui.pop(node, 0.02 * i)
 	end
 
 	-- cosmetic category tabs
 	local kgap = 10
 	local kw = math.min(250, (top_w - 2 * kgap) / 3)
-	local ky = vy - 72
+	local ky = vy - tab_h / 2 - 14 - kind_h / 2
 	for i, k in ipairs(skins.kinds) do
 		local x = vw / 2 + (i - 2) * (kw + kgap)
 		local sel = k == kind
-		ui.btn(root, x, ky, kw, 64, i18n.t("kind_" .. k), function()
+		ui.btn(root, x, ky, kw, kind_h, i18n.t("kind_" .. k), function()
 			app.garage_kind = k
 			app.rebuild()
-		end, { icon = KIND_ICON[k], icon_size = 28, color = sel and ui.PURPLE or ui.PANEL_LT, size = 22 })
+		end, { icon = KIND_ICON[k], icon_size = 36, color = sel and ui.PURPLE or ui.PANEL_LT, size = 22 })
 	end
 
 	-- item grid
 	local list = skins.list_of(kind)
-	local cols = app.portrait and 3 or 5
+	local cols = app.portrait and 3 or (top_w < 1000 and 4 or 5)
 	local rows = math.ceil(#list / cols)
 	local gap = 12
-	local area_top = ky - 44
+	local area_top = ky - kind_h / 2 - 12
 	local area_bottom = mb + 16
 	local card_w = math.min(260, (top_w - (cols - 1) * gap) / cols)
 	local card_h = math.min(app.portrait and 220 or 200, (area_top - area_bottom - (rows - 1) * gap) / rows)

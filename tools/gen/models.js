@@ -235,18 +235,19 @@ M.node_anchor = () => {
   m.boxMM(-0.07, -0.07, -1.48, 0.07, 0.07, 1.48, "anchor_dk");
   for (const s of [1, -1]) {
     const z = s * TZ;
-    m.bevelBox(0, 0, z, 0.56, 0.56, 0.24, 0.035, {
+    // red mounting plate with four corner bolts
+    m.bevelBox(0, 0, z, 0.56, 0.56, 0.24, 0.05, {
       top: "anchor_lt", side: "anchor", front: "anchor", back: "anchor_dk", bottom: "anchor_dk", layer: "anchor_dk",
     });
-    m.boxMM(-0.16, -0.16, z + s * 0.12, 0.16, 0.16, z + s * 0.17, "anchor_lt");
-    m.boxMM(-0.06, -0.06, z + s * 0.17, 0.06, 0.06, z + s * 0.2, "anchor_dk");
-    for (const dx of [-0.2, 0.2]) {
-      for (const dy of [-0.2, 0.2]) {
-        m.boxMM(dx - 0.035, dy - 0.035, z + s * 0.12, dx + 0.035, dy + 0.035, z + s * 0.16, "bolt_lt");
+    for (const dx of [-0.19, 0.19]) {
+      for (const dy of [-0.19, 0.19]) {
+        m.boxMM(dx - 0.04, dy - 0.04, z + s * 0.12, dx + 0.04, dy + 0.04, z + s * 0.15, "bolt_dk");
       }
     }
-    // gusset toward the centre
-    m.prism([[-0.26, -0.26], [0.26, -0.26], [0.26, 0.24]], z - 0.1, z + 0.1, "anchor_dk");
+    // a big round pin, the same family as node_joint but heavier
+    m.cylinder(0, 0, 0.2, z + s * 0.1, z + s * 0.15, 10, { cap: "anchor_dk", side: "anchor_dk" });
+    m.cylinder(0, 0, 0.14, z + s * 0.15, z + s * 0.19, 10, { cap: "bolt", side: "bolt_dk" });
+    m.cylinder(0, 0, 0.065, z + s * 0.19, z + s * 0.22, 8, { cap: "chrome", side: "chrome_dk" });
   }
   return m;
 };
@@ -534,7 +535,74 @@ M.wedge_dn = () => new Mesh().prism([[-0.5, 0], [0.5, 0], [-0.5, 1]], -0.5, 0.5,
   cap: "base_lo",
   side: (a, b) => (a[0] !== b[0] && a[1] !== b[1] ? null : "base"),
 });
-M.spoiler = () => new Mesh().prism([[-0.5, 0], [0.5, 0], [0.5, 1]], -0.5, 0.5, { cap: "base_lo", side: "base" });
+// ------------------------------------------------------------------ garage toppers
+// Real-size props (metres), base at y = 0, centred on x / z, facing +x. world/vehicle_view.lua puts
+// them on the vehicle's mount point (game/config/vehicles.lua `mounts`) and scales by `topper_scale`.
+M.spoiler = () => {
+  const m = new Mesh();
+  // two struts on a base plate
+  for (const z of [-0.42, 0.42]) {
+    m.boxMM(-0.1, 0, z - 0.07, 0.1, 0.04, z + 0.07, "black");
+    m.boxMM(-0.04, 0.03, z - 0.035, 0.04, 0.27, z + 0.035, "grille");
+  }
+  // raked wing with a light leading edge
+  m.prism([[-0.24, 0.25], [0.2, 0.27], [0.21, 0.32], [-0.25, 0.35]], -0.6, 0.6, { cap: "tire_lt", side: "black" });
+  m.boxMM(0.18, 0.27, -0.6, 0.23, 0.31, 0.6, "chrome_dk");
+  // red end plates
+  for (const s of [1, -1]) {
+    const z0 = s > 0 ? 0.6 : -0.64, z1 = s > 0 ? 0.64 : -0.6;
+    m.prism([[-0.28, 0.2], [0.22, 0.22], [0.24, 0.36], [-0.28, 0.42]], z0, z1, { cap: "curb_red", side: "anchor_dk" });
+  }
+  return m;
+};
+
+M.topper_beacon = () => {
+  const m = new Mesh();
+  m.bevelBox(0, 0.035, 0, 0.36, 0.07, 0.32, 0.015, { top: "tire_lt", side: "black", bottom: "black", layer: "black" });
+  // red dome with a bright band and a chrome cap
+  m.bevelBox(0, 0.19, 0, 0.24, 0.24, 0.22, 0.04, {
+    top: "steel_lt", side: "tail", front: "tail", back: "steel_dk", bottom: "steel_dk", layer: "steel",
+  });
+  m.boxMM(-0.125, 0.14, -0.115, 0.125, 0.19, 0.115, "light");
+  m.bevelBox(0, 0.33, 0, 0.1, 0.05, 0.1, 0.012, { top: "chrome", side: "chrome_dk" });
+  return m;
+};
+
+M.topper_duck = () => {
+  const m = new Mesh();
+  const yellow = { top: "helmet", side: "helmet", front: "helmet", back: "helmet_dk", bottom: "helmet_dk", layer: "helmet_dk" };
+  m.bevelBox(-0.03, 0.13, 0, 0.46, 0.26, 0.32, 0.06, yellow); // body
+  m.boxRotZ(-0.25, 0.26, 0, 0.14, 0.09, 0.16, 0.7, "helmet"); // tail tip
+  m.bevelBox(0.12, 0.38, 0, 0.22, 0.22, 0.22, 0.045, yellow); // head
+  m.boxMM(0.22, 0.33, -0.055, 0.33, 0.38, 0.055, "boost"); // beak
+  m.boxMM(0.22, 0.315, -0.045, 0.31, 0.335, 0.045, "boost_dk");
+  for (const s of [1, -1]) {
+    const z0 = s > 0 ? 0.105 : -0.125, z1 = s > 0 ? 0.125 : -0.105;
+    m.boxMM(0.15, 0.4, z0, 0.2, 0.45, z1, "black"); // eyes
+    m.boxMM(0.165, 0.425, s > 0 ? 0.124 : -0.128, 0.18, 0.44, s > 0 ? 0.128 : -0.124, "white");
+    const w0 = s > 0 ? 0.155 : -0.175, w1 = s > 0 ? 0.175 : -0.155;
+    m.bevelBoxMM(-0.17, 0.09, w0, 0.06, 0.21, w1, 0.015, "helmet_dk"); // wings
+  }
+  return m;
+};
+
+M.topper_hat = () => {
+  const m = new Mesh();
+  // brim with curled-up sides
+  m.bevelBox(0, 0.025, 0, 0.62, 0.05, 0.5, 0.018, { top: "trunk_lt", side: "trunk", bottom: "trunk_dk", layer: "trunk_dk" });
+  for (const s of [1, -1]) {
+    const z0 = s > 0 ? 0.19 : -0.26, z1 = s > 0 ? 0.26 : -0.19;
+    m.boxMM(-0.3, 0.05, z0, 0.3, 0.1, z1, { top: "trunk_lt", side: "trunk", front: "trunk", back: "trunk_dk" });
+  }
+  // crown with a pinched top and a dark band
+  m.bevelBox(0, 0.19, 0, 0.32, 0.28, 0.28, 0.05, {
+    top: "trunk_lt", side: "trunk", front: "trunk", back: "trunk_dk", bottom: "trunk_dk", layer: "trunk_dk",
+  });
+  m.boxMM(-0.045, 0.31, -0.15, 0.045, 0.335, 0.15, "trunk_dk");
+  m.boxMM(-0.168, 0.06, -0.148, 0.168, 0.11, 0.148, "black");
+  m.boxMM(0.12, 0.065, 0.148, 0.16, 0.105, 0.152, "lane"); // buckle
+  return m;
+};
 
 M.block = () => new Mesh().bevelBox(0, 0, 0, 1, 1, 1, 0.07, {
   top: "base_hi", side: "base", front: "base_lo", back: "base", bottom: "base_dk", layer: "base_dk",
@@ -585,11 +653,15 @@ M.flag_finish = () => {
 M.flag_start = () => {
   const m = new Mesh();
   const f = new Mesh();
-  flag(f, "flag_g", "flag_g", false);
+  flag(f, "flag_g", "flag_w", true);
   m.add(f, 0, 0, -1.7);
   m.add(f, 0, 0, 1.7);
-  m.boxMM(0.06, 2.55, -1.68, 1.2, 2.85, 1.68, "flag_g");
-  m.boxMM(0.12, 2.62, -1.6, 1.1, 2.7, 1.6, "white");
+  // green / white chequered banner, the start-line twin of the finish banner
+  for (let i = 0; i < 6; i++) {
+    for (let j = 0; j < 2; j++) {
+      m.boxMM(0.06 + i * 0.2, 2.9 - j * 0.2, -1.7, 0.26 + i * 0.2, 3.1 - j * 0.2, 1.7, (i + j) % 2 ? "flag_w" : "flag_g");
+    }
+  }
   return m;
 };
 
@@ -729,20 +801,38 @@ M.cloud = () => {
   m.bevelBox(0.12, 0.65, 0, 0.9, 0.45, 0.65, 0.07, { top: "cloud", side: "cloud_sh", front: "cloud", back: "cloud_sh", bottom: "cloud_sh" });
   return m;
 };
+// Background peak: crisp two-facet low poly (sunlit left face, shaded right face) with a jagged
+// snow cap. Tinted per theme with aerial perspective by world/level_view.lua. Kept procedural
+// (not voxelised): at 30-60 m wide a voxel grid turns into noisy stairs.
 M.mountain = () => {
   const m = new Mesh();
-  // Broad low-poly domes: overlapping copies make a natural ridgeline, not a picket fence.
-  m.prism([
-    [-0.55, 0], [0.55, 0], [0.46, 0.16], [0.34, 0.32], [0.2, 0.44],
-    [0.06, 0.58], [-0.06, 0.5], [-0.2, 0.38], [-0.36, 0.24], [-0.46, 0.12],
-  ], -0.2, 0.2, { cap: "base_lo", side: "base", back: "base_dk" });
-  // secondary shoulder
-  m.prism([[-0.5, 0], [-0.02, 0], [-0.22, 0.46]], -0.12, 0.14, { cap: "base", side: "base_lo", back: "base_dk" });
-  // shaded side
-  m.prism([[0.06, 0.58], [0.55, 0], [0.27, 0.02]], 0.2, 0.212, "base_dk");
-  // snow caps
-  m.prism([[-0.075, 0.49], [0.14, 0.49], [0.04, 0.6]], 0.2, 0.215, "snow");
-  m.prism([[-0.36, 0.31], [-0.12, 0.31], [-0.22, 0.46]], 0.14, 0.155, "snow");
+  const P = [0.03, 0.62]; // peak
+  m.prism([[-0.55, 0], [P[0], 0], P], -0.2, 0.2, { cap: "base_hi", side: "base_lo", back: "base_dk" });
+  m.prism([[P[0], 0], [0.55, 0], P], -0.2, 0.2, { cap: "base_lo", side: "base_dk", back: "base_dk" });
+  // snow: a cap above y = 0.43 with a ragged lower edge, split along the ridge like the rock
+  const snow = (pts, c) => m.prism(pts, 0.2, 0.208, c);
+  snow([[-0.135, 0.43], [P[0], 0.43], P], "snow");
+  snow([[P[0], 0.43], [0.19, 0.43], P], "cloud_sh");
+  snow([[-0.135, 0.43], [-0.07, 0.43], [-0.11, 0.37]], "snow");
+  snow([[-0.035, 0.43], [0.03, 0.43], [0.0, 0.38]], "snow");
+  snow([[0.03, 0.43], [0.11, 0.43], [0.07, 0.36]], "cloud_sh");
+  snow([[0.13, 0.43], [0.19, 0.43], [0.165, 0.39]], "cloud_sh");
+  // a lower shoulder on the left breaks the perfect cone
+  m.prism([[-0.55, 0], [-0.05, 0], [-0.3, 0.36]], -0.16, 0.16, { cap: "base", side: "base_lo", back: "base_dk" });
+  m.prism([[-0.05, 0], [0.12, 0], [-0.3, 0.36]], -0.16, 0.16, { cap: "base_lo", side: "base_dk", back: "base_dk" });
+  return m;
+};
+
+// Distant forest silhouette: a strip of simple flat pines (tinted dark per theme).
+M.forest = () => {
+  const m = new Mesh();
+  const trees = [[-0.46, 0.5], [-0.33, 0.72], [-0.2, 0.58], [-0.06, 0.86], [0.08, 0.64], [0.22, 0.78], [0.36, 0.55], [0.47, 0.68]];
+  for (const [x, h] of trees) {
+    m.prism([[x - 0.075, 0.06], [x + 0.075, 0.06], [x, h * 0.62]], -0.02, 0.02, { cap: "base_lo", side: "base_dk" });
+    m.prism([[x - 0.06, h * 0.38], [x + 0.06, h * 0.38], [x, h]], -0.02, 0.02, { cap: "base_lo", side: "base_dk" });
+  }
+  // deep base: reaches below the water line, so no sky shows under the strip through the gap
+  m.boxMM(-0.55, -4, -0.02, 0.55, 0.1, 0.02, { front: "base_lo", side: "base_dk", top: "base_lo" });
   return m;
 };
 M.lab_panel = () => {

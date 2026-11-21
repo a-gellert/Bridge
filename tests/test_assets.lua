@@ -99,4 +99,50 @@ for _, item in ipairs(skins.list_of("topper")) do
 	if item.visual then assert(visuals.defs[item.visual], "topper visual missing: " .. item.visual) end
 end
 
-print("   visuals: " .. count .. " registry entries, factories and entities linked; HTML shell and meta assets verified")
+-- unified art pipeline: every icon the GUI asks for exists in the generated atlas
+local sizes = require("gui.icon_sizes")
+local vehicles = require("game.config.vehicles")
+local materials = require("game.config.materials")
+local atlas = assert(readfile(ROOT .. "/assets/images/ui.atlas"), "ui.atlas missing")
+for name in pairs(sizes) do
+	assert(atlas:find("/assets/images/ui/" .. name .. ".png", 1, true), "icon_sizes entry not in the atlas: " .. name)
+end
+for _, a in ipairs(achievements.list) do assert(sizes[a.icon], "achievement icon not generated: " .. a.icon) end
+for _, m in ipairs(materials.list) do assert(sizes[m.icon], "material icon not generated: " .. m.icon) end
+for _, name in ipairs({ "eraser", "coin", "paint", "tire", "hat", "video", "hint", "trash", "undo" }) do
+	assert(sizes[name], "UI icon not generated: " .. name)
+end
+for _, v in ipairs(vehicles.list) do
+	assert(sizes[v.icon], "vehicle icon missing: " .. v.icon)
+	assert(v.mounts and v.mounts.roof and v.mounts.rear and (v.topper_scale or 0) > 0, v.id .. ": mounts / topper_scale")
+	assert(v.paint_visual and visuals.defs[v.paint_visual], v.id .. ": paint model not registered")
+	assert(type(v.paint) == "table" and #v.paint == 3, v.id .. ": factory paint colour")
+	-- garage preview layers share one frame: { w, h, x, y, frame_w, frame_h }
+	local frame
+	for _, layer in ipairs({ "sil", "body", "paint", "wheel", "wheel_xl" }) do
+		local s = sizes["gv_" .. v.id .. "_" .. layer]
+		assert(s and #s == 6, "garage layer missing: gv_" .. v.id .. "_" .. layer)
+		frame = frame or { s[5], s[6] }
+		assert(s[5] == frame[1] and s[6] == frame[2], "garage layers of " .. v.id .. " are not in one frame")
+		assert(s[3] + s[1] <= s[5] and s[4] + s[2] <= s[6], "garage layer outside its frame: " .. layer)
+	end
+	for _, t in ipairs(skins.list_of("topper")) do
+		if t.visual then
+			assert(sizes["gv_" .. v.id .. "_" .. t.id], "no garage layer for topper " .. t.id .. " on " .. v.id)
+			assert(t.mount == "roof" or t.mount == "rear", "topper " .. t.id .. " needs a mount")
+		end
+	end
+end
+-- paint colours: classic = factory paint, every other paint is a colour
+for _, item in ipairs(skins.list_of("body")) do
+	if item.id ~= "classic" then assert(type(item.color) == "table" and #item.color == 3, "paint " .. item.id .. " has no colour") end
+end
+local t = skins.paint_tint(vehicles.get("car"), skins.get("body", "classic"))
+assert(math.abs(t[3] * 218 / 255 - vehicles.get("car").paint[3]) < 1e-6, "classic paint must reproduce the factory colour")
+-- no orphans from the removed painted panorama
+assert(not readfile(ROOT .. "/entities/bg_sky.go") and not readfile(ROOT .. "/entities/bg_mountains.go"), "orphan bg entities")
+for name, theme in pairs(themes) do
+	if type(theme) == "table" and theme.forest then assert(#theme.forest == 3, name .. ".forest must be RGB") end
+end
+
+print("   visuals: " .. count .. " registry entries, factories and entities linked; HTML shell, meta assets and UI atlas verified")

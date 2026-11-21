@@ -29,9 +29,6 @@ images {
   image: "/assets/images/ui/trash.png"
 }
 images {
-  image: "/assets/images/ui/eraser.png"
-}
-images {
   image: "/assets/images/ui/play.png"
 }
 images {
@@ -92,15 +89,6 @@ images {
   image: "/assets/images/ui/pedal_brake.png"
 }
 images {
-  image: "/assets/images/ui/veh_moto.png"
-}
-images {
-  image: "/assets/images/ui/veh_car.png"
-}
-images {
-  image: "/assets/images/ui/veh_truck.png"
-}
-images {
   image: "/assets/images/ui/garage.png"
 }
 images {
@@ -117,6 +105,150 @@ images {
 }
 images {
   image: "/assets/images/ui/hand.png"
+}
+images {
+  image: "/assets/images/ui/bridge.png"
+}
+images {
+  image: "/assets/images/ui/pill.png"
+}
+images {
+  image: "/assets/images/ui/flip.png"
+}
+images {
+  image: "/assets/images/ui/heart.png"
+}
+images {
+  image: "/assets/images/ui/bandage.png"
+}
+images {
+  image: "/assets/images/ui/truck.png"
+}
+images {
+  image: "/assets/images/ui/portal.png"
+}
+images {
+  image: "/assets/images/ui/flag.png"
+}
+images {
+  image: "/assets/images/ui/stopwatch.png"
+}
+images {
+  image: "/assets/images/ui/nobrake.png"
+}
+images {
+  image: "/assets/images/ui/boom.png"
+}
+images {
+  image: "/assets/images/ui/brush.png"
+}
+images {
+  image: "/assets/images/ui/paint.png"
+}
+images {
+  image: "/assets/images/ui/tire.png"
+}
+images {
+  image: "/assets/images/ui/hat.png"
+}
+images {
+  image: "/assets/images/ui/veh_moto.png"
+}
+images {
+  image: "/assets/images/ui/gv_moto_sil.png"
+}
+images {
+  image: "/assets/images/ui/gv_moto_body.png"
+}
+images {
+  image: "/assets/images/ui/gv_moto_paint.png"
+}
+images {
+  image: "/assets/images/ui/gv_moto_wheel.png"
+}
+images {
+  image: "/assets/images/ui/gv_moto_wheel_xl.png"
+}
+images {
+  image: "/assets/images/ui/gv_moto_beacon.png"
+}
+images {
+  image: "/assets/images/ui/gv_moto_duck.png"
+}
+images {
+  image: "/assets/images/ui/gv_moto_spoiler.png"
+}
+images {
+  image: "/assets/images/ui/gv_moto_hat.png"
+}
+images {
+  image: "/assets/images/ui/gw_moto.png"
+}
+images {
+  image: "/assets/images/ui/veh_car.png"
+}
+images {
+  image: "/assets/images/ui/gv_car_sil.png"
+}
+images {
+  image: "/assets/images/ui/gv_car_body.png"
+}
+images {
+  image: "/assets/images/ui/gv_car_paint.png"
+}
+images {
+  image: "/assets/images/ui/gv_car_wheel.png"
+}
+images {
+  image: "/assets/images/ui/gv_car_wheel_xl.png"
+}
+images {
+  image: "/assets/images/ui/gv_car_beacon.png"
+}
+images {
+  image: "/assets/images/ui/gv_car_duck.png"
+}
+images {
+  image: "/assets/images/ui/gv_car_spoiler.png"
+}
+images {
+  image: "/assets/images/ui/gv_car_hat.png"
+}
+images {
+  image: "/assets/images/ui/gw_car.png"
+}
+images {
+  image: "/assets/images/ui/veh_truck.png"
+}
+images {
+  image: "/assets/images/ui/gv_truck_sil.png"
+}
+images {
+  image: "/assets/images/ui/gv_truck_body.png"
+}
+images {
+  image: "/assets/images/ui/gv_truck_paint.png"
+}
+images {
+  image: "/assets/images/ui/gv_truck_wheel.png"
+}
+images {
+  image: "/assets/images/ui/gv_truck_wheel_xl.png"
+}
+images {
+  image: "/assets/images/ui/gv_truck_beacon.png"
+}
+images {
+  image: "/assets/images/ui/gv_truck_duck.png"
+}
+images {
+  image: "/assets/images/ui/gv_truck_spoiler.png"
+}
+images {
+  image: "/assets/images/ui/gv_truck_hat.png"
+}
+images {
+  image: "/assets/images/ui/gw_truck.png"
 }
 images {
   image: "/assets/images/ui/mat_road.png"
@@ -141,6 +273,9 @@ images {
 }
 images {
   image: "/assets/images/ui/mat_cable.png"
+}
+images {
+  image: "/assets/images/ui/eraser.png"
 }
 margin: 2
 extrude_borders: 2

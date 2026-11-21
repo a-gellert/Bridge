@@ -90,14 +90,79 @@ function readVoxGrid(root, id) {
   return { dims, cell: meta.cell, step: meta.step || [meta.cell, meta.cell, meta.cell], origin: meta.origin, grid };
 }
 
-// .vox -> assets/models/<id>.gltf
+// Paintable vehicles: the body colour voxels go to a separate <id>_paint model in neutral greys
+// (main -> base, light -> white, dark -> base_dk) that the game tints with the garage paint, so a
+// paint job recolours only the bodywork, never tyres, glass, chrome or the cargo box.
+const PAINT = {
+  veh_moto: ["moto", "moto_lt", "moto_dk"],
+  veh_car: ["car", "car_lt", "car_dk"],
+  veh_truck: ["truck", "truck_lt", "truck_dk"],
+};
+const NEUTRAL = ["base", "white", "base_dk"];
+const INTERIOR = -3; // blocks faces like a solid voxel but draws nothing (see tools/vox/gltf.js)
+
+function splitPaint(volume, names) {
+  const remap = new Map(names.map((n, i) => [NAMES.indexOf(n), NAMES.indexOf(NEUTRAL[i])]));
+  const body = new Int16Array(volume.grid), paint = new Int16Array(volume.grid);
+  for (let i = 0; i < volume.grid.length; i++) {
+    const c = volume.grid[i];
+    if (c < 0) continue;
+    if (remap.has(c)) { body[i] = INTERIOR; paint[i] = remap.get(c); }
+    else paint[i] = INTERIOR;
+  }
+  return [{ ...volume, grid: body }, { ...volume, grid: paint }];
+}
+
+// .vox -> assets/models/<id>.gltf (+ <id>_paint.gltf for paintable vehicles)
 function buildGltf(root, id) {
   const volume = readVoxGrid(root, id);
-  const mesh = voxelsToMesh(volume);
-  const info = mesh.writeGltf(gltfPath(root, id), id);
+  let info;
+  if (PAINT[id]) {
+    const [body, paint] = splitPaint(volume, PAINT[id]);
+    info = voxelsToMesh(body).writeGltf(gltfPath(root, id), id);
+    info.tris += voxelsToMesh(paint).writeGltf(gltfPath(root, id + "_paint"), id + "_paint").tris;
+  } else {
+    info = voxelsToMesh(volume).writeGltf(gltfPath(root, id), id);
+  }
   let solid = 0;
   for (let i = 0; i < volume.grid.length; i++) if (volume.grid[i] >= 0) solid++;
   return { tris: info.tris, voxels: solid, dims: volume.dims, cell: volume.cell };
+}
+
+// Blender export assets/models/<id>.glb -> mesh-like { pos, uvs, idx } in game space (palette UVs).
+function readGlb(root, id) {
+  const glb = fs.readFileSync(path.join(root, "assets/models", id + ".glb"));
+  const jsonLen = glb.readUInt32LE(12);
+  const g = JSON.parse(glb.subarray(20, 20 + jsonLen).toString());
+  const bin = glb.subarray(20 + jsonLen + 8);
+  const acc = (i, Ctor, comps) => {
+    const a = g.accessors[i];
+    const v = g.bufferViews[a.bufferView];
+    // only tightly packed float attributes are supported (what tools/blender/gen_models.py exports)
+    if (v.byteStride || (Ctor === Float32Array && a.componentType !== 5126)) {
+      throw new Error(`readGlb(${id}): interleaved or quantized accessor ${i} is not supported`);
+    }
+    const start = bin.byteOffset + (v.byteOffset || 0) + (a.byteOffset || 0);
+    return new Ctor(bin.buffer.slice(start, start + a.count * comps * Ctor.BYTES_PER_ELEMENT));
+  };
+  for (const n of g.nodes || []) {
+    if (n.matrix || n.scale || n.rotation || n.translation) {
+      throw new Error(`readGlb(${id}): node transforms are not applied; export with transforms applied`);
+    }
+  }
+  const pos = [], nrm = [], uvs = [], idx = [];
+  for (const mesh of g.meshes) {
+    for (const prim of mesh.primitives) {
+      const base = pos.length / 3;
+      for (const v of acc(prim.attributes.POSITION, Float32Array, 3)) pos.push(v);
+      for (const v of acc(prim.attributes.NORMAL, Float32Array, 3)) nrm.push(v);
+      for (const v of acc(prim.attributes.TEXCOORD_0, Float32Array, 2)) uvs.push(v);
+      if (prim.indices === undefined) throw new Error(`readGlb(${id}): non-indexed primitives are not supported`);
+      const ia = g.accessors[prim.indices];
+      for (const v of acc(prim.indices, ia.componentType === 5125 ? Uint32Array : Uint16Array, 1)) idx.push(v + base);
+    }
+  }
+  return { pos, nrm, uvs, idx };
 }
 
 // mesh -> .vox (and the sidecar), then .gltf
@@ -108,4 +173,41 @@ function buildFromMesh(root, id, mesh, opts = {}) {
   return { ...info, written };
 }
 
-module.exports = { voxPath, metaPath, gltfPath, writeVoxFromGrid, readVoxGrid, buildGltf, buildFromMesh, NAMES };
+const PAINT_IDS = Object.keys(PAINT).map((id) => id + "_paint");
+
+// Same split for a procedural mesh (gen_assets --no-vox): triangles are routed by palette colour.
+function splitMeshPaint(mesh, id) {
+  const { Mesh } = require("../gen/mesh");
+  const { uv } = require("../gen/palette");
+  const names = PAINT[id];
+  const key = (u, v) => Math.floor(u * 16) + Math.floor(v * 16) * 16;
+  const remap = new Map(names.map((n, i) => {
+    const [u, v] = uv(n);
+    return [key(u, v), uv(NEUTRAL[i])];
+  }));
+  const body = new Mesh(), paint = new Mesh();
+  for (let t = 0; t < mesh.idx.length; t += 3) {
+    const ia = mesh.idx[t];
+    const k = key(mesh.uvs[ia * 2], mesh.uvs[ia * 2 + 1]);
+    for (let j = 1; j < 3; j++) {
+      const i = mesh.idx[t + j];
+      if (key(mesh.uvs[i * 2], mesh.uvs[i * 2 + 1]) !== k) throw new Error(`splitMeshPaint(${id}): triangle ${t / 3} mixes palette colours`);
+    }
+    const to = remap.has(k) ? paint : body;
+    const base = to.pos.length / 3;
+    for (let j = 0; j < 3; j++) {
+      const i = mesh.idx[t + j];
+      to.pos.push(mesh.pos[i * 3], mesh.pos[i * 3 + 1], mesh.pos[i * 3 + 2]);
+      to.nrm.push(mesh.nrm[i * 3], mesh.nrm[i * 3 + 1], mesh.nrm[i * 3 + 2]);
+      const n = remap.get(k);
+      to.uvs.push(n ? n[0] : mesh.uvs[i * 2], n ? n[1] : mesh.uvs[i * 2 + 1]);
+    }
+    to.idx.push(base, base + 1, base + 2);
+  }
+  return [body, paint];
+}
+
+module.exports = {
+  voxPath, metaPath, gltfPath, writeVoxFromGrid, readVoxGrid, buildGltf, buildFromMesh, readGlb, splitMeshPaint,
+  NAMES, PAINT, PAINT_IDS,
+};

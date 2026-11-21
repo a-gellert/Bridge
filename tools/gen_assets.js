@@ -30,20 +30,40 @@ palette.writeTexture(path.join(ROOT, "assets/textures/palette.png"));
 palette.writeJson(path.join(ROOT, "tools/gen/palette.json"));
 
 const jsIds = Object.keys(models).filter((id) => !blender.set.has(id));
+// a .vox without its sidecar (or the reverse) is silently ignored below: say so
+for (const id of jsIds.concat(blender.ids)) {
+  const v = fs.existsSync(vox.voxPath(ROOT, id)), m = fs.existsSync(vox.metaPath(ROOT, id));
+  if (v !== m) console.warn(`warning: assets/vox/${id}.${v ? "json" : "vox"} is missing, ${id} falls back to its source mesh`);
+}
 let tris = 0;
 let voxCount = 0;
 for (const id of jsIds) {
   // assets/vox/<id>.vox wins: the model is edited in MagicaVoxel, glTF is generated from it
   const hasVox = !noVox && fs.existsSync(vox.voxPath(ROOT, id)) && fs.existsSync(vox.metaPath(ROOT, id));
-  const info = hasVox
-    ? vox.buildGltf(ROOT, id)
-    : models[id]().writeGltf(path.join(ROOT, "assets/models", id + ".gltf"), id);
-  if (hasVox) voxCount++;
+  let info;
+  if (hasVox) {
+    info = vox.buildGltf(ROOT, id); // also writes <id>_paint.gltf for paintable vehicles
+    voxCount++;
+  } else if (vox.PAINT[id]) {
+    const [body, paint] = vox.splitMeshPaint(models[id](), id);
+    info = body.writeGltf(path.join(ROOT, "assets/models", id + ".gltf"), id);
+    info.tris += paint.writeGltf(path.join(ROOT, "assets/models", id + "_paint.gltf"), id + "_paint").tris;
+  } else {
+    info = models[id]().writeGltf(path.join(ROOT, "assets/models", id + ".gltf"), id);
+  }
   tris += info.tris;
 }
-const extraIds = ["bg_sky", "bg_mountains"];
-const allIds = Array.from(new Set(Object.keys(models).concat(blender.ids).concat(extraIds)));
-const created = defold.entities(ROOT, allIds, force, blender.set);
+// Blender decor voxelised by `node tools/vox/build.js --blender`: the .vox wins over the .glb
+const voxBlender = noVox ? [] : blender.ids.filter((id) => fs.existsSync(vox.voxPath(ROOT, id)) && fs.existsSync(vox.metaPath(ROOT, id)));
+for (const id of voxBlender) {
+  tris += vox.buildGltf(ROOT, id).tris;
+  voxCount++;
+}
+const glbIds = new Set(blender.ids.filter((id) => !voxBlender.includes(id)));
+const allIds = Array.from(new Set(Object.keys(models).concat(blender.ids).concat(vox.PAINT_IDS)));
+const created = defold.entities(ROOT, allIds, force, glbIds);
+// their entities must follow the mesh from .glb to .gltf (and back with --no-vox)
+defold.entities(ROOT, blender.ids, true, glbIds);
 defold.factories(ROOT, allIds);
 
 const images = ui.generate(ROOT);
@@ -56,4 +76,4 @@ defold.sounds(ROOT, snd, sfx.LOOPING);
 
 defold.font(ROOT);
 
-console.log(`js models: ${jsIds.length} (${tris} triangles, ${voxCount} from .vox), blender models: ${blender.ids.length}, new entities: ${created}, ui images: ${images.length}, store icons: ${storeIcons.length}, sounds: ${snd.length}`);
+console.log(`js models: ${jsIds.length}, blender models: ${blender.ids.length} (${voxBlender.length} voxelised), ${tris} triangles, ${voxCount} from .vox, new entities: ${created}, ui images: ${images.length}, store icons: ${storeIcons.length}, sounds: ${snd.length}`);

@@ -15,11 +15,14 @@ function M.build(app, root)
 
 	local top = ui.panel(root, vw / 2, vh - mt - top_h / 2, top_w, top_h, ui.PANEL, 22)
 	ui.blocker(top)
-	ui.btn(top, -top_w / 2 + 66, 0, 112, 64, "", function() app.show("menu") end, { icon = "back", icon_size = 38 })
+	ui.btn(top, -top_w / 2 + 66, 0, 112, app.touch and 72 or 64, "", function() app.show("menu") end, { icon = "back", icon_size = 38 })
 	ui.text(top, i18n.t("achievements"), 0, 2, 36, ui.WHITE)
-	ui.icon(top, "trophy", top_w / 2 - 190, 2, 38, ui.STAR)
-	ui.text(top, i18n.f("ach_unlocked", progress.achievement_count(), achievements.count()), top_w / 2 - 88, 2, 26, ui.WHITE)
+	-- trophy + counter hug the right edge (clear of the centred title even on a 720-wide portrait bar)
+	ui.icon(top, "trophy", top_w / 2 - 212, 2, 36, ui.STAR)
+	ui.label(top, i18n.f("ach_unlocked", progress.achievement_count(), achievements.count()), top_w / 2 - 104, 2, 24, ui.WHITE, 170)
 
+	-- narrow cards (portrait, 4:3) move the reward under the icon so the title gets the whole row
+	local narrow = app.portrait or top_w < 1100
 	local list = achievements.list
 	local cols = app.portrait and 2 or 3
 	local rows = math.ceil(#list / cols)
@@ -37,19 +40,29 @@ function M.build(app, root)
 		local y = y0 - row * (card_h + gap)
 		local done = progress.has_achievement(a.id)
 		local card = ui.panel(root, x, y, card_w, card_h, done and ui.hex("#2C4B39") or ui.hex("#232838"), 18)
-		local icon_bg = ui.box(card, "circle", -card_w / 2 + 44, 0, 62, 62, done and ui.hex("#3FA86B") or ui.hex("#3A4157"))
-		ui.icon(card, a.icon, -card_w / 2 + 44, 0, 34, done and ui.WHITE or ui.DIM)
-		local tx = -card_w / 2 + 90
-		ui.label(card, i18n.t("ach_" .. a.id), tx, card_h / 2 - 24, 23, done and ui.WHITE or ui.DIM,
-			card_w - 108, 1, gui.PIVOT_W)
-		ui.label(card, i18n.t("ach_" .. a.id .. "_d"), tx, -card_h / 2 + 34, 17, done and ui.hex("#C8E9D5") or ui.hex("#7C859C"),
-			card_w - 108, 2, gui.PIVOT_W)
-		if done then
-			ui.icon(card, "check", card_w / 2 - 26, card_h / 2 - 26, 28, ui.GREEN)
+		-- icon disc with a small state badge (check / lock) on its corner
+		local ix = -card_w / 2 + 46
+		local disc = math.min(64, card_h - 30)
+		-- portrait cards are narrow: the reward moves under the icon so the title gets the full row
+		local iy = narrow and 10 or 0
+		ui.box(card, "circle", ix, iy, disc, disc, done and ui.hex("#3FA86B") or ui.hex("#3A4157"))
+		ui.icon(card, a.icon, ix, iy, disc * 0.56, done and ui.WHITE or ui.DIM)
+		local badge = ui.box(card, "circle", ix + disc * 0.36, iy - disc * 0.36, 26, 26, done and ui.GREEN or ui.hex("#4A536D"))
+		ui.icon(badge, done and "check" or "lock", 0, 0, 15, ui.WHITE)
+		-- title + reward on the first row, description below
+		local tx = -card_w / 2 + 92
+		local row1 = card_h / 2 - 22
+		local reward = i18n.f("ach_reward", i18n.money(a.reward))
+		local reward_color = done and ui.GREEN or ui.YELLOW
+		if narrow then
+			ui.text(card, reward, ix, -card_h / 2 + 15, 17, reward_color)
 		else
-			ui.icon(card, "lock", card_w / 2 - 26, card_h / 2 - 26, 26, ui.DIM)
-			ui.text(card, i18n.f("ach_reward", i18n.money(a.reward)), tx, -card_h / 2 + 20, 16, ui.YELLOW, gui.PIVOT_W)
+			ui.text(card, reward, card_w / 2 - 14, row1, 18, reward_color, gui.PIVOT_E)
 		end
+		ui.label(card, i18n.t("ach_" .. a.id), tx, row1, 22, done and ui.WHITE or ui.hex("#C9D0E0"),
+			card_w - 108 - (narrow and 0 or 78), 1, gui.PIVOT_W)
+		ui.label(card, i18n.t("ach_" .. a.id .. "_d"), tx, -12, app.portrait and 19 or 17, done and ui.hex("#C8E9D5") or ui.hex("#8F98AE"),
+			card_w - 108, 2, gui.PIVOT_W)
 	end
 end
 

@@ -3,12 +3,14 @@ const fs = require("fs");
 const path = require("path");
 
 // Models drawn in the translucent pass (material voxel_alpha, predicate model_alpha)
-const ALPHA_MODELS = new Set(["water", "water_top", "water_wave", "grid_dots", "zone", "portal_glow", "shadow", "bg_mountains"]);
-const SKY_MODELS = new Set(["sky_band", "bg_sky"]);
+const ALPHA_MODELS = new Set(["water", "water_top", "water_wave", "grid_dots", "zone", "portal_glow", "shadow"]);
+const SKY_MODELS = new Set(["sky_band"]);
 
 function write(root, rel, text, { keep = false } = {}) {
   const file = path.join(root, rel);
   if (keep && fs.existsSync(file)) return false;
+  // unchanged content (ignoring line endings) is not rewritten: no mtime / CRLF churn in git
+  if (fs.existsSync(file) && fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n") === text) return false;
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, text, "utf8");
   return true;

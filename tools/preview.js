@@ -11,13 +11,11 @@ const scene = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const OUT = process.argv[3] || "preview.png";
 const W = scene.w > 1400 ? Math.round(scene.w / 2) : scene.w;
 const H = scene.w > 1400 ? Math.round(scene.h / 2) : scene.h;
-const ALPHA = new Set(["water", "water_top", "water_wave", "grid_dots", "zone", "portal_glow", "shadow", "bg_mountains"]);
-const UNLIT = new Set(["sky_band", "bg_sky"]);
+const ALPHA = new Set(["water", "water_top", "water_wave", "grid_dots", "zone", "portal_glow", "shadow"]);
+const UNLIT = new Set(["sky_band"]);
 
-const TEXTURES = {
-  bg_sky: path.join(ROOT, "assets/images/backgrounds/bg_parallax_1_sky.png"),
-  bg_mountains: path.join(ROOT, "assets/images/backgrounds/bg_parallax_2_mountains.png"),
-};
+// models drawn with their own texture instead of the palette (none at the moment)
+const TEXTURES = {};
 const texCache = {};
 function getTexture(m) {
   if (texCache[m] !== undefined) return texCache[m];
@@ -35,7 +33,10 @@ const RGB = NAMES.map((n) => png.hex(COLORS[n]).map((v) => v / 255));
 const meshCache = {};
 function readModel(name) {
   const gltf = path.join(ROOT, "assets/models", name + ".gltf");
-  if (fs.existsSync(gltf)) {
+  // same mesh as the game: entities/<id>.go decides between .gltf and .glb
+  const ent = path.join(ROOT, "entities", name + ".go");
+  const wantsGlb = fs.existsSync(ent) && fs.readFileSync(ent, "utf8").includes(name + ".glb");
+  if (!wantsGlb && fs.existsSync(gltf)) {
     const g = JSON.parse(fs.readFileSync(gltf, "utf8"));
     return { g, bin: Buffer.from(g.buffers[0].uri.split(",")[1], "base64") };
   }

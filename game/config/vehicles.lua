@@ -7,6 +7,11 @@
 --   susp_stiffness N/m per wheel, susp_damping = fraction of mount velocity removed per second
 --   air_torque     rad/s^2 for mid-air tilting (gas = nose down, brake = nose up)
 -- Visuals: `body_visual` / `wheel_visual` are ids from game/config/visuals.lua.
+--   paint_visual   bodywork-only model in neutral greys; `paint` is its factory colour (0..1 RGB),
+--                  a garage paint replaces it (see skins.paint_tint)
+--   mounts         model-space points where garage toppers sit (roof: on top, rear: behind the cabin)
+--   topper_scale   topper size on this vehicle (toppers are modelled at car size)
+-- tools/gen/ui.js reads wheels / mounts / topper_scale from this file to render the HUD icons.
 local M = {}
 
 M.list = {
@@ -19,7 +24,8 @@ M.list = {
 		},
 		max_speed = 13, cruise = 0.62, accel = 8, brake = 14, reverse = 3,
 		grip = 1.25, susp_stiffness = 14000, susp_damping = 14, air_torque = 7,
-		body_visual = "veh_moto", wheel_visual = "wheel_moto",
+		body_visual = "veh_moto", wheel_visual = "wheel_moto", paint_visual = "veh_moto_paint", paint = { 0.898, 0.282, 0.302 },
+		mounts = { roof = { x = 0.12, y = 0.96 }, rear = { x = -0.58, y = 0.3 } }, topper_scale = 0.6,
 	},
 	{
 		id = "car", name_key = "veh_car", icon = "veh_car", stars = 2,
@@ -30,7 +36,8 @@ M.list = {
 		},
 		max_speed = 12, cruise = 0.62, accel = 6.5, brake = 12, reverse = 3,
 		grip = 1.2, susp_stiffness = 50000, susp_damping = 14, air_torque = 4.5,
-		body_visual = "veh_car", wheel_visual = "wheel_car",
+		body_visual = "veh_car", wheel_visual = "wheel_car", paint_visual = "veh_car_paint", paint = { 0.243, 0.557, 0.969 },
+		mounts = { roof = { x = -0.2, y = 0.8 }, rear = { x = -1.02, y = 0.24 } }, topper_scale = 1.15,
 	},
 	{
 		id = "truck", name_key = "veh_truck", icon = "veh_truck", stars = 3,
@@ -42,7 +49,8 @@ M.list = {
 		},
 		max_speed = 10, cruise = 0.65, accel = 5, brake = 10, reverse = 2.5,
 		grip = 1.2, susp_stiffness = 90000, susp_damping = 14, air_torque = 2.6,
-		body_visual = "veh_truck", wheel_visual = "wheel_truck",
+		body_visual = "veh_truck", wheel_visual = "wheel_truck", paint_visual = "veh_truck_paint", paint = { 1.0, 0.788, 0.235 },
+		mounts = { roof = { x = 1.4, y = 1.05 }, rear = { x = -1.82, y = 1.02 } }, topper_scale = 1.6,
 	},
 }
 

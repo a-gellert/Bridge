@@ -34,8 +34,8 @@ local function apply()
 	local g = keys.gas or touch_gas
 	local b = keys.brake or touch_brake
 	session.set_input(g, b)
-	if h.gas then gui.set_color(h.gas, g and ui.GREEN or ui.hex("#35C97E", 0.55)) end
-	if h.brake then gui.set_color(h.brake, b and ui.RED or ui.hex("#E5484D", 0.55)) end
+	if h.gas then gui.set_color(h.gas, g and ui.GREEN or ui.hex("#35C97E", 0.78)) end
+	if h.brake then gui.set_color(h.brake, b and ui.RED or ui.hex("#E5484D", 0.78)) end
 	if g ~= h.last_gas then
 		if g then haptics.click() end
 		pedal_inner(g, h.gas_inner, h.gas_glow, "#7CFFB0", h.gas_base)
@@ -64,6 +64,12 @@ function M.build(app, root)
 	h.last_gas, h.last_brake = false, false
 	local vw, vh = app.vw, app.vh
 	local ml, mr, mt, mb = layout.margins(vw, vh, 16)
+	camera.set_insets(0, 0)
+	-- the result card owns the screen (it has its own FIX button): no pedals or badge under it
+	if session.state == "result" then
+		apply()
+		return
+	end
 
 	ui.btn(root, ml + 120, vh - mt - 44, 220, 80, i18n.t("fix"), function()
 		session.stop_drive()
@@ -71,18 +77,19 @@ function M.build(app, root)
 
 	local def = vehicles.get(session.vehicle)
 	local badge = ui.panel(root, vw - mr - 130, vh - mt - 44, 240, 80, ui.PANEL, 24)
-	ui.icon(badge, def.icon, -70, 2, 60)
+	ui.vehicle(badge, def.id, -64, 4, 96)
 	for i = 1, 3 do
 		ui.icon(badge, i <= def.stars and "star" or "star_slot", 10 + (i - 1) * 36, 2, 32, i <= def.stars and ui.STAR or ui.STAR_OFF)
 	end
 
 	-- pedals (always shown: they also work with a mouse)
 	local size = app.touch and (app.portrait and 236 or 204) or (app.portrait and 200 or 180)
-	local px = (size - 180) * 0.5
+	-- the outer edge stays put as pedals grow, so the glow never runs off the screen / gesture bar
+	local px = 0
 	h.brake, h.brake_inner, h.brake_glow = make_pedal(root, ml + size / 2 + 10 - px, mb + size / 2 + 10 - px,
-		size, ui.hex("#E5484D", 0.55), "#FF9AA0", "pedal_brake", i18n.t("brake"))
+		size, ui.hex("#E5484D", 0.78), "#FF9AA0", "pedal_brake", i18n.t("brake"))
 	h.gas, h.gas_inner, h.gas_glow = make_pedal(root, vw - mr - size / 2 - 10 + px, mb + size / 2 + 10 - px,
-		size, ui.hex("#35C97E", 0.55), "#7CFFB0", "pedal_gas", i18n.t("gas"))
+		size, ui.hex("#35C97E", 0.78), "#7CFFB0", "pedal_gas", i18n.t("gas"))
 	h.gas_base = vmath.vector3(1, 1, 1)
 	h.brake_base = vmath.vector3(1, 1, 1)
 
@@ -102,7 +109,6 @@ function M.build(app, root)
 		ui.label(tip, i18n.t("tip_stress"), 0, 0, 22, ui.WHITE, tw - 34, 2)
 		gui.animate(tip, "color.w", 0, gui.EASING_INQUAD, 0.6, 7, function() gui.set_enabled(tip, false) end)
 	end
-	camera.set_insets(0, 0)
 	apply()
 end
 

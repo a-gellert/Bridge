@@ -21,13 +21,13 @@ local function apply_skin(v)
 	local wheel = skins.get("wheel", progress.skin_for("wheel", def.id))
 	local topper = skins.get("topper", progress.skin_for("topper", def.id))
 	v.body_skin, v.wheel_skin, v.topper_skin = body, wheel, topper
-	spawn.tint_rgb(v.body, body.tint)
+	if v.paint then spawn.tint_rgb(v.paint, skins.paint_tint(def, body)) end
 	for _, w in ipairs(v.wheels) do
 		spawn.tint_rgb(w, wheel.tint)
 	end
 	if topper.visual then
 		v.topper = spawn.create(topper.visual, 0, 0, 0)
-		spawn.tint_rgb(v.topper, topper.tint)
+		if topper.tint then spawn.tint_rgb(v.topper, topper.tint) end
 	end
 end
 
@@ -36,6 +36,7 @@ function M.create(run)
 	local def = run.vehicle_def
 	view = { def = def, wheels = {}, mark_t = 0, smoke_t = 0 }
 	view.body = spawn.create(def.body_visual, 0, 0, 0)
+	if def.paint_visual then view.paint = spawn.create(def.paint_visual, 0, 0, 0) end
 	for i = 1, #def.wheels do
 		view.wheels[i] = spawn.create(def.wheel_visual, 0, 0, 0)
 	end
@@ -53,22 +54,19 @@ function M.update(run, geo)
 	local ca, sa = cos_sin(angle)
 	local ws = view.wheel_skin and view.wheel_skin.scale or 1
 	spawn.set(view.def.body_visual, view.body, cx, cy, 0, angle)
+	if view.paint then spawn.set(view.def.paint_visual, view.paint, cx, cy, 0, angle) end
 	for i, wh in ipairs(v.wheels) do
 		local x, y = v:wheel_pos(i)
 		spawn.set(view.def.wheel_visual, view.wheels[i], x, y, 0, wh.angle, ws)
 	end
-	-- topper sits on the roof, rotating with the chassis
+	-- topper sits on its mount point (roof / rear), rotating with the chassis
 	if view.topper and view.topper_skin then
 		local t = view.topper_skin
-		local ox = (t.pos[1] or 0) * view.def.body.w
-		local oy = (t.pos[2] or 0) * view.def.body.h
+		local mount = view.def.mounts and view.def.mounts[t.mount or "roof"]
+		local ox = mount and mount.x or 0
+		local oy = mount and mount.y or view.def.body.h * 0.5
 		local tx, ty = cx + ox * ca - oy * sa, cy + ox * sa + oy * ca
-		local s = t.scale
-		if type(s) == "table" then
-			spawn.set(t.visual, view.topper, tx, ty, 0, angle, s[1], s[2], s[3])
-		else
-			spawn.set(t.visual, view.topper, tx, ty, 0, angle, s or 1)
-		end
+		spawn.set(t.visual, view.topper, tx, ty, 0, angle, (view.def.topper_scale or 1) * (t.scale or 1))
 	end
 	-- shadow on the terrain right below (hidden over gaps and when far above)
 	local h = geo and terrain.height_at(geo, cx, cy)
@@ -99,8 +97,9 @@ function M.update(run, geo)
 			local rx = cx - ca * (view.def.body.w * 0.55)
 			local ry = cy - sa * (view.def.body.w * 0.55) - 0.15
 			local c = { 0.62, 0.62, 0.66 }
-			if view.body_skin then
-				c = { view.body_skin.tint[1] * 0.7, view.body_skin.tint[2] * 0.7, view.body_skin.tint[3] * 0.7 }
+			if view.body_skin and view.body_skin.color then
+				local p = view.body_skin.color
+				c = { 0.45 + p[1] * 0.3, 0.45 + p[2] * 0.3, 0.45 + p[3] * 0.3 } -- a hint of the paint in grey smoke
 			end
 			fx.smoke(rx, ry, 0, c, gas and 2 or 1)
 		end
@@ -110,6 +109,7 @@ end
 function M.destroy()
 	if not view then return end
 	spawn.delete(view.body)
+	if view.paint then spawn.delete(view.paint) end
 	for _, w in ipairs(view.wheels) do spawn.delete(w) end
 	spawn.delete(view.shadow)
 	if view.topper then spawn.delete(view.topper) end

@@ -21,13 +21,13 @@ function M.build(app, root)
 	local t = ui.text(root, i18n.t("title"), cx, title_y, app.portrait and 96 or 104, ui.YELLOW)
 	gui.set_outline(t, ui.INK)
 	ui.pop(t)
-	local sub = ui.text(root, i18n.t("subtitle"), cx, title_y - (app.portrait and 74 or 66), app.portrait and 28 or 26, ui.WHITE)
+	local sub = ui.text(root, i18n.t("subtitle"), cx, title_y - (app.portrait and 74 or 66), app.portrait and 32 or 30, ui.WHITE)
 	ui.fade_in(sub, 0.4, 0.2)
 
 	-- play
 	local nxt = progress.next_level()
 	local lvl = levels.get(nxt)
-	local bw = math.min(app.portrait and 520 or 440, vw - 2 * ml - 40)
+	local bw = math.min(app.portrait and 664 or 440, vw - 2 * ml - 24)
 	local play, _, _ = ui.btn(root, cx, title_y - (app.portrait and 210 or 178), bw, app.portrait and 116 or 104,
 		i18n.t("play") .. "  " .. lvl.id, function()
 			app.start_level(nxt)
@@ -37,8 +37,8 @@ function M.build(app, root)
 
 	-- three secondary buttons: levels / garage / awards
 	local gap = 12
-	local bgap = 20
-	local row_w = math.min(app.portrait and 560 or 800, vw - 2 * ml)
+	local bgap = app.portrait and 12 or 20
+	local row_w = math.min(800, vw - 2 * ml - 24)
 	local bw3 = (row_w - 2 * bgap) / 3
 	local row_y = title_y - (app.portrait and 350 or 292)
 	local function side(index)
@@ -46,10 +46,10 @@ function M.build(app, root)
 	end
 	ui.pop(ui.btn(root, side(0), row_y, bw3, app.portrait and 92 or 84, i18n.t("levels"), function()
 		app.show("levels")
-	end, { color = ui.BLUE, icon = "menu", icon_size = 34, size = app.portrait and 30 or 27 }), 0.16)
+	end, { color = ui.BLUE, icon = "menu", icon_size = 34, size = app.portrait and 28 or 25 }), 0.16)
 	ui.pop(ui.btn(root, side(1), row_y, bw3, app.portrait and 92 or 84, i18n.t("garage"), function()
 		app.show("garage")
-	end, { color = ui.PURPLE, icon = "garage", icon_size = 36, size = app.portrait and 30 or 27 }), 0.22)
+	end, { color = ui.PURPLE, icon = "garage", icon_size = 36, size = app.portrait and 28 or 25 }), 0.22)
 	ui.pop(ui.btn(root, side(2), row_y, bw3, app.portrait and 92 or 84, i18n.t("achievements"), function()
 		app.show("achievements")
 	end, { color = ui.ORANGE, icon = "trophy", icon_size = 36, size = app.portrait and 28 or 25 }), 0.28)
