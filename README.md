@@ -45,7 +45,8 @@ game/                 чистый Lua без API Defold (тестируется
   bridge/             blueprint.lua (чертёж, бюджет, правила, undo, сохранение), snap.lua (сетка)
   core/               run.lua (один заезд и судейство), session.lua (состояние уровня),
                       progress.lua (звёзды/открытия/кошелёк/скины/сохранения),
-                      achievements.lua (15 наград), events.lua, i18n.lua (en/ru)
+                      achievements.lua (15 наград), events.lua, i18n.lua (10 языков Poki),
+                      names.lua (переводы названий глав, уровней и скинов)
   levels/             levels.lua (индекс) + chapter1..4.lua (данные уровней с эталонными решениями)
 world/                3D-мир: world.script (оркестратор), camera, build_input (жесты стройки,
                       touch lens), level_view, bridge_view, vehicle_view (скины), fx, spawn

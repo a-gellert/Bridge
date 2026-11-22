@@ -558,6 +558,221 @@ function portalLevel(o) {
   return buildPortalLevel(o);
 }
 
+// Deck + truss over a horizontal span, split so every beam fits its material.
+function flatTruss(x0, x1, y, opts) {
+  opts = opts || {};
+  const deckMat = opts.deckMat || "road";
+  const trussMat = opts.trussMat || "wood";
+  const h = opts.height == null ? 2.4 : opts.height;
+  const maxDeck = materials[deckMat].max * 0.99;
+  const maxTruss = materials[trussMat].max * 0.99;
+  let n = 2;
+  for (; n < 40; n++) {
+    const dx = (x1 - x0) / n;
+    if (Math.hypot(dx, 0) <= maxDeck && Math.hypot(Math.abs(dx), h) <= maxTruss) break;
+  }
+  const pts = [];
+  for (let k = 0; k <= n; k++) pts.push([R(x0 + ((x1 - x0) * k) / n), y]);
+  return trussOver(pts, { deckMat, trussMat, height: h, mode: "above" });
+}
+
+// Ascending bridge into a high entry portal; the exit drops the vehicle on the far low side.
+function portalVaultLevel(o) {
+  const x0 = o.x0 == null ? 0 : o.x0;
+  const x1 = o.x1;
+  const y1 = o.y1 == null ? 4 : o.y1;
+  const h = o.height == null ? 2.4 : o.height;
+  const plateau = o.plateau == null ? 6 : o.plateau;
+  const exitDX = o.exitDX == null ? 12 : o.exitDX;
+  const finishDX = o.finishDX == null ? 22 : o.finishDX;
+  const deckMat = o.deckMat || "road";
+  return spanLevel({
+    id: o.id,
+    name: o.name,
+    tip: o.tip || "tip_portal",
+    x0, x1, y0: 0, y1, height: h,
+    deckMat,
+    trussMat: o.trussMat || "steel",
+    materials: o.materials || ["road", "wood", "steel", "cable", "steel_road", "boost"],
+    topBlocks: false,
+    ground: [
+      [-40, x0, 0],
+      [x1 + plateau, x1 + 90, 0],
+    ],
+    blocks: [[x1, 0, x1 + plateau, y1]],
+    portals: [[
+      { x: x1 + 1.2, y: y1 + 1.3, angle: Math.PI },
+      { x: x1 + exitDX, y: 1.3, angle: 0 },
+    ]],
+    spikes: o.spikes,
+    start: o.start == null ? x0 - 6 : o.start,
+    finish: x1 + finishDX,
+    water: o.water == null ? -5 : o.water,
+    area: [x0 - 1, -1, x1 + 1, y1 + h + 1],
+  });
+}
+
+// Bridge to a ground portal and a vertical exit onto a high ledge. No bridge is needed after
+// the landing: the portal itself is the way up.
+function portalLaunchLevel(o) {
+  const x1 = o.x1;
+  const exitX = o.exitX == null ? x1 + 8 : o.exitX;
+  const exitY = o.exitY == null ? 10 : o.exitY;
+  const highY = o.highY == null ? 8 : o.highY;
+  // Land well inside the ledge: a center 2 m from the edge lets the truck tip off after
+  // the vertical exit (the chassis is ~4 m long).
+  const highX = o.highX == null ? exitX - 6 : o.highX;
+  const finish = o.finish == null ? exitX + 14 : o.finish;
+  return spanLevel({
+    id: o.id,
+    name: o.name,
+    tip: o.tip || "tip_portal",
+    x0: 0, x1, y0: 0, y1: 0,
+    height: o.height == null ? 2.4 : o.height,
+    deckMat: o.deckMat || "road",
+    trussMat: o.trussMat || "wood",
+    materials: o.materials || ["road", "wood", "steel", "cable", "steel_road", "boost"],
+    topBlocks: false,
+    ground: [
+      [-40, 0, 0],
+      [x1, x1 + 4, 0],
+      [highX, highX + 90, highY],
+    ],
+    blocks: o.blocks || [],
+    portals: [[
+      { x: x1 + 2, y: 1.3, angle: Math.PI },
+      { x: exitX, y: exitY, angle: Math.PI / 2 },
+    ]],
+    spikes: o.spikes,
+    start: o.start == null ? -6 : o.start,
+    finish,
+    water: o.water == null ? -5 : o.water,
+    area: [-1, -1, x1 + 1, 4],
+  });
+}
+
+// High bridge, then a leap into a floating portal; the exit is on the far ground.
+function portalCatchLevel(o) {
+  const bridgeX0 = o.bridgeX0 == null ? -10 : o.bridgeX0;
+  const bridgeX1 = o.bridgeX1 == null ? 0 : o.bridgeX1;
+  const startY = o.startY == null ? 8 : o.startY;
+  const ledge = o.ledge == null ? 4 : o.ledge;
+  const portalX = o.portalX;
+  const portalY = o.portalY == null ? 1.3 : o.portalY;
+  const exitX = o.exitX == null ? portalX + 12 : o.exitX;
+  const farX = o.farX == null ? portalX + 6 : o.farX;
+  const finish = o.finish == null ? exitX + 10 : o.finish;
+  return spanLevel({
+    id: o.id,
+    name: o.name,
+    tip: o.tip || "tip_portal",
+    x0: bridgeX0, x1: bridgeX1, y0: startY, y1: startY,
+    height: o.height == null ? 2.4 : o.height,
+    deckMat: o.deckMat || "road",
+    trussMat: o.trussMat || "wood",
+    materials: o.materials || ["road", "wood", "steel", "cable", "steel_road", "boost"],
+    topBlocks: false,
+    ground: [
+      [-40, bridgeX0, startY],
+      [bridgeX1, bridgeX1 + ledge, startY],
+      [farX, farX + 90, 0],
+    ],
+    blocks: o.blocks || [],
+    portals: [[
+      { x: portalX, y: portalY, angle: Math.PI },
+      { x: exitX, y: 1.3, angle: 0 },
+    ]],
+    spikes: o.spikes,
+    start: bridgeX0 - 6,
+    finish,
+    water: o.water == null ? -6 : o.water,
+    area: [bridgeX0 - 1, startY - 1, bridgeX1 + 1, startY + 4],
+  });
+}
+
+// Two elevator portals with a bridge between solid pillars. The build area spans both
+// bridges, but the pillars are solid, so a flat bridge cannot bypass the portal route.
+function portalChain2Level(o) {
+  const b1x1 = o.b1x1 == null ? 6 : o.b1x1;
+  const highY = o.highY == null ? 6 : o.highY;
+  const b2x0 = o.b2x0 == null ? 22 : o.b2x0;
+  const b2x1 = o.b2x1 == null ? 30 : o.b2x1;
+  const deckMat = o.deckMat || "road";
+  const b1 = flatTruss(0, b1x1, 0, { deckMat, trussMat: o.b1mat || "wood" });
+  const b2 = flatTruss(b2x0, b2x1, highY, { deckMat, trussMat: o.b2mat || "steel" });
+  return assemble({
+    id: o.id,
+    name: o.name,
+    tip: o.tip || "tip_portal",
+    materials: o.materials || ["road", "wood", "steel", "cable", "steel_road", "boost"],
+    ground: [
+      [-40, 0, 0],
+      [b1x1, b1x1 + 2, 0],
+      [b2x1 + 10, b2x1 + 90, 0],
+    ],
+    blocks: [
+      [b1x1 + 8, 0, b2x0, highY],
+      [b2x1, 0, b2x1 + 2, highY],
+    ],
+    anchors: b1.anchors.concat(b2.anchors),
+    portals: [
+      [{ x: b1x1 + 1, y: 1.3, angle: Math.PI }, { x: b1x1 + 10, y: highY + 1.3, angle: 0 }],
+      [{ x: b2x1 + 1, y: highY + 1.3, angle: Math.PI }, { x: b2x1 + 12, y: 1.3, angle: 0 }],
+    ],
+    spikes: o.spikes,
+    start: -6,
+    finish: b2x1 + 18,
+    water: o.water == null ? -6 : o.water,
+    area: [-1, -1, b2x1 + 1, highY + 4],
+    solution: dedupe(b1.solution.concat(b2.solution)),
+  });
+}
+
+// Three portals in one run: build two bridges, use the third portal as the final lift
+// onto the finish plateau. This is the only level family that can earn Quantum Leap.
+function portalChain3Level(o) {
+  const b1x1 = o.b1x1 == null ? 8 : o.b1x1;
+  const highY = o.highY == null ? 6 : o.highY;
+  const b2x0 = o.b2x0 == null ? 24 : o.b2x0;
+  const b2x1 = o.b2x1 == null ? 32 : o.b2x1;
+  const lowX0 = b2x1 + 10;
+  const lowX1 = lowX0 + 12;
+  const entry3 = lowX1 - 2;
+  const plateauX = entry3 + 6;
+  const exit3 = plateauX + 2;
+  const deckMat = o.deckMat || "road";
+  const b1 = flatTruss(0, b1x1, 0, { deckMat, trussMat: o.b1mat || "wood" });
+  const b2 = flatTruss(b2x0, b2x1, highY, { deckMat, trussMat: o.b2mat || "steel" });
+  return assemble({
+    id: o.id,
+    name: o.name,
+    tip: o.tip || "tip_portal",
+    materials: o.materials || ["road", "wood", "steel", "cable", "steel_road", "boost"],
+    ground: [
+      [-40, 0, 0],
+      [b1x1, b1x1 + 2, 0],
+      [lowX0, lowX1, 0],
+      [plateauX, plateauX + 90, highY],
+    ],
+    blocks: [
+      [b1x1 + 8, 0, b2x0, highY],
+      [b2x1, 0, b2x1 + 2, highY],
+    ],
+    anchors: b1.anchors.concat(b2.anchors),
+    portals: [
+      [{ x: b1x1 + 1, y: 1.3, angle: Math.PI }, { x: b1x1 + 10, y: highY + 1.3, angle: 0 }],
+      [{ x: b2x1 + 1, y: highY + 1.3, angle: Math.PI }, { x: lowX0 + 2, y: 1.3, angle: 0 }],
+      [{ x: entry3, y: 1.3, angle: Math.PI }, { x: exit3, y: highY + 1.3, angle: 0 }],
+    ],
+    spikes: o.spikes,
+    start: -6,
+    finish: plateauX + 10,
+    water: o.water == null ? -6 : o.water,
+    area: [-1, -1, b2x1 + 1, highY + 4],
+    solution: dedupe(b1.solution.concat(b2.solution)),
+  });
+}
+
 // Bridge -> entry portal on the low side -> exit portal on a high rock plateau -> finish.
 function portalHighLevel(o) {
   const x0 = o.x0 == null ? 0 : o.x0;
@@ -763,6 +978,12 @@ module.exports = {
   bounceLevel,
   portalLevel,
   portalHighLevel,
+  portalVaultLevel,
+  portalLaunchLevel,
+  portalCatchLevel,
+  portalChain2Level,
+  portalChain3Level,
+  flatTruss,
   assemble,
   fitBudget,
   test,

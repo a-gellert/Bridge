@@ -2,6 +2,7 @@
 -- script calls boot.init() and only the first call does the work).
 local progress = require("game.core.progress")
 local i18n = require("game.core.i18n")
+local poki = require("platform.poki")
 local audio = require("platform.audio")
 local device = require("platform.device")
 local haptics = require("platform.haptics")
@@ -30,12 +31,14 @@ function M.init()
 		end,
 	})
 	progress.load()
+	-- Priority: the player's saved choice > Poki's ?iso_lang= URL parameter > device locale.
 	local lang = progress.get("lang")
+	if not lang or lang == "" then lang = poki.language() end
 	if not lang or lang == "" then
 		local info = sys.get_sys_info()
-		lang = i18n.detect(info.language or info.device_language)
+		lang = info.language or info.device_language
 	end
-	i18n.set_lang(lang)
+	i18n.set_lang(i18n.detect(lang))
 	audio.set_enabled(progress.get("sound") ~= false)
 	haptics.set_enabled(progress.get("haptics") ~= false)
 	-- Loading completion is reported once by the HTML5 shell (extension-poki-sdk's template

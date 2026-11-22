@@ -76,9 +76,9 @@ local function mat_button(app, parent, x, y, w, bh, m)
 	local len = ui.label(node, m.max_len .. "m", 0, -bh * 0.38, app.portrait and 22 or 18, ui.DIM, w - 8)
 	if m.unlock == session.index then
 		-- sticker inside the tile's corner (it used to hang over the neighbouring button)
-		local bw2, bh2 = app.portrait and 52 or 44, app.portrait and 26 or 22
+		local bw2, bh2 = app.portrait and 60 or 50, app.portrait and 26 or 22
 		local badge = ui.panel(node, w / 2 - bw2 / 2 - 4, bh / 2 - bh2 / 2 - 4, bw2, bh2, ui.RED, 10)
-		ui.text(badge, "NEW", 0, 1, app.portrait and 18 or 15, ui.WHITE)
+		ui.text(badge, i18n.t("new_badge"), 0, 1, app.portrait and 18 or 15, ui.WHITE)
 		ui.pulse(badge, 1.1, 0.5)
 	end
 	ui.button(node, function()
@@ -237,8 +237,8 @@ function M.build(app, root)
 	local ex = mx0 + mb_w / 2 + #mats * (mb_w + 8)
 	local enode = ui.box(root, "btn", ex, mat_row_y, mb_w, mb_h, ui.PANEL_LT)
 	gui.set_slice9(enode, vmath.vector4(16, 16, 16, 24))
-	ui.icon(enode, "eraser", 0, mb_h * 0.16, math.min(mb_w - 12, 84))
-	ui.label(enode, i18n.t("erase"), 0, -mb_h * 0.26, 20, ui.WHITE, mb_w - 8)
+	ui.icon(enode, "eraser", 0, mb_h * 0.14, math.min(56, mb_w - 16))
+	ui.label(enode, i18n.t("erase"), 0, -mb_h * 0.28, 20, ui.WHITE, mb_w - 8)
 	ui.button(enode, function() toggle_erase(app) end)
 	h.erase = enode
 

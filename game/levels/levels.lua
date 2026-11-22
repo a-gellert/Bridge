@@ -8,6 +8,7 @@ local CHAPTERS = {
 	require("game.levels.chapter3"),
 	require("game.levels.chapter4"),
 }
+local NAMES = require("game.core.names")
 
 local M = {}
 
@@ -15,10 +16,20 @@ M.chapters = {}
 M.list = {}
 M.by_id = {}
 
+-- Source data keeps en/ru inline; the other languages live in game/core/names.lua.
+local function apply_names(entry, source)
+	local extra = entry.name and source[entry.name.en]
+	if extra then
+		for lang, text in pairs(extra) do entry.name[lang] = text end
+	end
+end
+
 for ci, ch in ipairs(CHAPTERS) do
 	ch.index = ci
 	ch.first = #M.list + 1
+	apply_names(ch, NAMES.chapters)
 	for li, lvl in ipairs(ch.levels) do
+		apply_names(lvl, NAMES.levels)
 		lvl.index = #M.list + 1
 		lvl.chapter = ch
 		lvl.chapter_index = ci

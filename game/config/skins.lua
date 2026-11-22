@@ -12,6 +12,9 @@
 --   price     bought with leftover budget dollars (the "wallet")
 --   stars     free, but requires this many campaign stars
 --   rewarded  unlocked by watching one rewarded video in the garage
+-- Localized names for the other eight languages; en/ru stay inline below.
+local NAMES = require("game.core.names")
+
 local M = {}
 
 M.kinds = { "body", "wheel", "topper" }
@@ -55,6 +58,10 @@ for kind, list in pairs(M.list) do
 		item.kind = kind
 		item.key = key(kind, item.id)
 		item.default = item.price == 0 and not item.stars and not item.rewarded
+		local extra = NAMES.skins[kind] and NAMES.skins[kind][item.id]
+		if extra then
+			for lang, text in pairs(extra) do item.name[lang] = text end
+		end
 		M.by_kind[kind][item.id] = item
 	end
 end

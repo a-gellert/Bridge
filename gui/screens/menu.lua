@@ -10,6 +10,54 @@ local haptics = require("platform.haptics")
 
 local M = {}
 
+local lang_layer
+
+local function close_language()
+	if lang_layer then
+		ui.delete(lang_layer)
+		lang_layer = nil
+	end
+end
+
+-- Called by app.rebuild() before the GUI root is recreated.
+function M.clear()
+	lang_layer = nil
+end
+
+-- Language picker: all supported Poki locales, in native spelling, two columns.
+local function open_language(app)
+	if lang_layer then return end
+	local vw, vh = app.vw, app.vh
+	local dim = ui.box(app.root, "white", vw / 2, vh / 2, vw, vh, ui.hex("#0B0E16", 0.7))
+	ui.blocker(dim)
+	local pw = math.min(720, vw - 36)
+	local cols, gap = 2, 10
+	local rows = math.ceil(#i18n.languages / cols)
+	local bh = app.portrait and 72 or 64
+	local header, footer = 84, 84
+	local ph = header + rows * bh + (rows - 1) * gap + footer
+	local panel = ui.panel(dim, 0, 0, pw, ph, ui.PANEL, 28)
+	ui.blocker(panel)
+	ui.text(panel, i18n.t("language"), 0, ph / 2 - 44, app.portrait and 34 or 32, ui.YELLOW)
+	local bw = (pw - 50) / cols
+	local top = ph / 2 - header - bh / 2
+	for idx, code in ipairs(i18n.languages) do
+		local col = (idx - 1) % cols
+		local row = math.floor((idx - 1) / cols)
+		local x = -bw / 2 - gap / 2 + col * (bw + gap)
+		local y = top - row * (bh + gap)
+		ui.btn(panel, x, y, bw, bh, i18n.native[code] or code, function()
+			i18n.set_lang(code)
+			progress.set_setting("lang", code)
+			close_language()
+			app.rebuild()
+		end, { color = code == i18n.lang and ui.GREEN or ui.PANEL_LT, size = app.portrait and 25 or 23 })
+	end
+	ui.btn(panel, 0, -ph / 2 + 44, 220, 62, i18n.t("close"), close_language, { size = 24 })
+	lang_layer = dim
+	ui.fade_in(dim, 0.18)
+end
+
 function M.build(app, root)
 	local vw, vh = app.vw, app.vh
 	local cx = vw / 2
@@ -84,18 +132,19 @@ function M.build(app, root)
 			app.rebuild()
 		end)
 	end
-	ui.btn(root, ml + m + 60, top_y, 120, 80, i18n.lang == "ru" and "RU" or "EN", function()
-		local lang = i18n.lang == "ru" and "en" or "ru"
-		i18n.set_lang(lang)
-		progress.set_setting("lang", lang)
-		app.rebuild()
-	end, { size = 34 })
+	ui.btn(root, ml + m + 60, top_y, 120, 80, (i18n.lang or "en"):upper(), function()
+		open_language(app)
+	end, { size = 30 })
 end
 
 function M.on_key(app, action_id, action)
 	if not action.pressed then return false end
 	local name = app.key_names[action_id]
 	if name == "back" then
+		if lang_layer then
+			close_language()
+			return true
+		end
 		if app.exit_layer then
 			ui.delete(app.exit_layer)
 			app.exit_layer = nil

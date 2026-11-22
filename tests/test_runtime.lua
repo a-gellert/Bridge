@@ -246,7 +246,18 @@ press_key("back")
 frames(2)
 click_text("RU")
 frames(2)
-assert(find_text("PLAY  1-2") or find_text("PLAY  1-1"), "language switched to English")
+assert(find_text("ЯЗЫК"), "language picker opens")
+for _, name in ipairs({ "English", "Русский", "Deutsch", "Français", "Español", "Italiano", "Português", "Polski", "Türkçe", "Nederlands" }) do
+	assert(find_text(name), "language picker lists " .. name)
+end
+click_text("Deutsch")
+frames(2)
+assert(find_text("SPIELEN  1-2") or find_text("SPIELEN  1-1"), "German menu")
+click_text("DE")
+frames(2)
+click_text("English")
+frames(2)
+assert(find_text("PLAY  1-2") or find_text("PLAY  1-1"), "language switched back to English")
 
 -- garage: select the owned classic paint, then back to the menu
 click_text("GARAGE")

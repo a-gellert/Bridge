@@ -10,6 +10,7 @@ const path = require("path");
 const {
   spanLevel, archLevel, humpLevel, caveLevel, kingpostLevel, suspensionLevel,
   islandsLevel, pillarLevel, jumpLevel, bounceLevel, portalHighLevel,
+  portalVaultLevel, portalLaunchLevel, portalCatchLevel, portalChain2Level, portalChain3Level,
   fitBudget, test,
 } = require("./level_kit");
 const { buildPierBridge } = require("./gen_campaign_40");
@@ -69,6 +70,21 @@ function buildSpec(spec, id) {
       break;
     case "portal":
       lvl = portalHighLevel({ ...o, id, name: { en: spec.en, ru: spec.ru } });
+      break;
+    case "vault":
+      lvl = portalVaultLevel({ ...o, id, name: { en: spec.en, ru: spec.ru } });
+      break;
+    case "launch":
+      lvl = portalLaunchLevel({ ...o, id, name: { en: spec.en, ru: spec.ru } });
+      break;
+    case "catch":
+      lvl = portalCatchLevel({ ...o, id, name: { en: spec.en, ru: spec.ru } });
+      break;
+    case "chain2":
+      lvl = portalChain2Level({ ...o, id, name: { en: spec.en, ru: spec.ru } });
+      break;
+    case "chain3":
+      lvl = portalChain3Level({ ...o, id, name: { en: spec.en, ru: spec.ru } });
       break;
     case "pier":
       lvl = buildPierBridge({ ...o, id, name: { en: spec.en, ru: spec.ru }, budget: 99999 });
@@ -167,40 +183,40 @@ function spikesUnder(x0, x1, top) {
 }
 
 const CH3 = [
-  L("portal", "Warp Gate", "Врата варпа", { x1: 8, height: 2.4, highY: 5, exitX: 24, finish: 34, materials: M3, water: -5, tip: "tip_portal", mult: 1.25 }),
+  L("vault", "Warp Gate", "Врата варпа", { x1: 8, y1: 3, plateau: 6, exitDX: 12, finishDX: 22, materials: M3, tip: "tip_portal", mult: 1.2 }),
   L("flat", "Spike Run", "Шипованный пролёт", { x0: 0, x1: 10, height: 2.4, materials: ["road", "wood", "rope", "steel"], water: -6, spikes: spikesUnder(0, 10, -3), tip: "tip_spikes", mult: 1.25 }),
   L("jump", "Boost Leap", "Прыжок на ускорителе", { edge: 2, landing: 16, deckY: 0, landingY: -2, rampLen: 4, rampRise: 1.3, materials: M3, water: -8, tip: "tip_boost", mult: 1.25 }),
   L("cave", "Cave of Needles", "Пещера игл", { x0: 0, x1: 12, height: 2.3, materials: M1S, water: -6, spikes: spikesUnder(0, 12, -3), tip: "tip_spikes", mult: 1.24 }),
-  L("portal", "Portal Vault", "Портальное хранилище", { x1: 10, height: 2.5, highY: 6, exitX: 28, finish: 40, materials: M3, water: -5, tip: "tip_portal2", mult: 1.24 }),
+  L("launch", "Portal Vault", "Портальное хранилище", { x1: 12, exitX: 22, exitY: 11, highY: 9, finish: 38, materials: M3, tip: "tip_portal", mult: 1.2 }),
   L("king", "Rope Gauntlet", "Верёвочная тропа", { x0: 0, x1: 8, rise: 2.0, stayMat: "wood", materials: M1R, water: -5, spikes: spikesUnder(0, 8, -3), tip: "tip_rope", mult: 1.24 }),
   L("jump", "Momentum Gate", "Врата импульса", { edge: 2, landing: 14, deckY: 0, landingY: -2, rampLen: 4, rampRise: 1.3, materials: M3, water: -8, tip: "tip_boost", mult: 1.24 }),
   L("susp", "Spike Suspension", "Подвесной над шипами", { x0: 0, x1: 12, segments: 4, towerY: 6, towerInset: 2, cableMat: "rope", materials: M1R, water: -6, spikes: spikesUnder(0, 12, -3.2), tip: "tip_rope", mult: 1.24 }),
-  L("portal", "High Portal", "Высокий портал", { x1: 12, height: 2.6, highY: 8, exitX: 32, finish: 44, materials: M3, water: -5, tip: "tip_portal", mult: 1.22 }),
+  L("vault", "High Portal", "Высокий портал", { x1: 12, y1: 5, plateau: 7, exitDX: 14, finishDX: 24, materials: M3, tip: "tip_portal", mult: 1.2 }),
   L("arch", "Neon Arch", "Неоновый мост", { x0: 0, x1: 14, rise: 2.2, trussMat: "steel", materials: M1S, water: -6, tip: "tip_triangles", mult: 1.22 }),
   L("islands", "Island Lab", "Лаборатория островов", { gaps: [{ x0: 0, x1: 8 }, { x0: 11, x1: 19 }, { x0: 22, x1: 30 }], mode: "above", height: 2.6, trussMat: "steel", materials: M3, water: -7, spikes: spikesUnder(0, 30, -4), tip: "tip_steel", mult: 1.22 }),
-  L("portal", "Portal Pillar", "Портальная игла", { x1: 10, height: 2.5, highY: 7, exitX: 28, finish: 40, materials: M3, water: -5, tip: "tip_portal2", mult: 1.22 }),
+  L("chain2", "Portal Pillar", "Портальная игла", { b1x1: 8, highY: 5, b2x0: 24, b2x1: 32, b1mat: "wood", b2mat: "wood", materials: M3, tip: "tip_portal", mult: 1.2 }),
   L("bounce", "Quantum Bounce", "Квантовый батут", { edge: 4, landing: 16, deckY: 0, landingY: -2, materials: M3B, water: -8, tip: "tip_bounce", mult: 1.22 }),
   L("cave", "Test Chamber", "Тестовая камера", { x0: 0, x1: 14, height: 2.5, trussMat: "steel", materials: M3, water: -6, tip: "tip_supports", mult: 1.22 }),
   L("jump", "Boost Chasm", "Ускорительная пропасть", { edge: 2, landing: 16, deckY: 0, landingY: -3, rampLen: 4, rampRise: 1.3, materials: M3, water: -9, spikes: spikesUnder(8, 16, -4), tip: "tip_boost", mult: 1.2 }),
   L("flat", "Spike Bridge", "Мост над шипами", { x0: 0, x1: 14, height: 2.6, trussMat: "steel", materials: M3, water: -6, spikes: spikesUnder(0, 14, -3.2), tip: "tip_spikes", mult: 1.2 }),
   L("flat", "Flux Highway", "Шоссе потока", { x0: 0, x1: 16, height: 2.6, deckMat: "boost", trussMat: "steel", materials: M3, water: -7, tip: "tip_boost", mult: 1.2 }),
-  L("portal", "Falling Gate", "Падающие врата", { x1: 12, height: 2.6, highY: 9, exitX: 30, finish: 42, materials: M3, water: -5, tip: "tip_portal", mult: 1.2 }),
+  L("catch", "Falling Gate", "Падающие врата", { bridgeX0: -16, bridgeX1: 0, startY: 10, ledge: 4, portalX: 14, portalY: 1.3, exitX: 28, farX: 24, finish: 38, materials: M3, tip: "tip_portal", mult: 1.2 }),
   L("pillar", "Crystal Pillar", "Кристальный столп", { x0: 0, rightX: 16, mid: 8, height: 2.5, trussMat: "steel", materials: M3, water: -8, spikes: spikesUnder(0, 16, -4), tip: "tip_steel", mult: 1.2 }),
   L("bounce", "Lab Trampoline", "Лабораторный батут", { edge: 4, landing: 20, deckY: 0, landingY: -3, materials: M3B, water: -9, tip: "tip_bounce", mult: 1.2 }),
   L("cave", "Needle Cave", "Пещера шипов", { x0: 0, x1: 16, height: 2.6, deckMat: "steel_road", trussMat: "steel", materials: M3, water: -7, spikes: spikesUnder(0, 16, -3.4), tip: "tip_spikes", mult: 1.2 }),
-  L("portal", "Portal Loop", "Петля портала", { x1: 14, height: 2.7, highY: 7, exitX: 34, finish: 46, materials: M3, water: -6, tip: "tip_portal2", mult: 1.18 }),
+  L("chain2", "Portal Loop", "Петля портала", { b1x1: 6, highY: 6, b2x0: 22, b2x1: 30, b1mat: "wood", b2mat: "steel", materials: M3, tip: "tip_portal", mult: 1.2 }),
   L("susp", "Hanging Wires", "Висячие тросы", { x0: 0, x1: 18, segments: 6, towerY: 8, towerInset: 2, cableMat: "cable", materials: M3, water: -8, spikes: spikesUnder(0, 18, -4), tip: "tip_cable", mult: 1.18 }),
   L("jump", "Rocket Rail", "Ракетные рельсы", { edge: 2, landing: 13, deckY: 0, landingY: -2, rampLen: 4, rampRise: 1.3, materials: M3, water: -9, tip: "tip_boost", mult: 1.18 }),
-  L("portal", "Quantum Leap", "Квантовый скачок", { x1: 14, height: 2.7, highY: 10, exitX: 34, finish: 46, materials: M3, water: -6, tip: "tip_portal", mult: 1.18 }),
+  L("chain3", "Quantum Leap", "Квантовый скачок", { b1x1: 8, highY: 6, b2x0: 24, b2x1: 32, b1mat: "wood", b2mat: "steel", materials: M3, tip: "tip_portal", mult: 1.2 }),
   L("king", "Spike Crown", "Корона шипов", { x0: 0, x1: 10, rise: 2.4, stayMat: "steel", materials: M3, water: -7, spikes: spikesUnder(0, 10, -3.2), tip: "tip_spikes", mult: 1.18 }),
   L("islands", "Reactors", "Реакторы", { gaps: [{ x0: 0, x1: 9 }, { x0: 12, x1: 21 }, { x0: 24, x1: 33 }], mode: "below", height: 2.8, deckMat: "steel_road", trussMat: "steel", materials: M3, water: -9, spikes: spikesUnder(0, 33, -5), tip: "tip_steel_road", mult: 1.18 }),
-  L("portal", "Twin Gates", "Двойные врата", { x1: 12, height: 2.7, highY: 8, exitX: 30, finish: 44, materials: M3, water: -6, tip: "tip_portal2", mult: 1.18 }),
+  L("chain2", "Twin Gates", "Двойные врата", { b1x1: 10, highY: 7, b2x0: 28, b2x1: 36, b1mat: "wood", b2mat: "steel", materials: M3, tip: "tip_portal", mult: 1.2 }),
   L("bounce", "Bounce Reactor", "Батут-реактор", { edge: 4, landing: 24, deckY: 0, landingY: -4, materials: M3B, water: -10, spikes: spikesUnder(12, 24, -5), tip: "tip_mix", mult: 1.16 }),
   L("arch", "Singularity Arch", "Арка сингулярности", { x0: 0, x1: 18, rise: 2.6, deckMat: "steel_road", trussMat: "steel", materials: M3, water: -8, spikes: spikesUnder(0, 18, -4), tip: "tip_triangles", mult: 1.16 }),
-  L("portal", "Aperture Overpass", "Эстакада Апертуры", { x1: 16, height: 2.8, highY: 9, exitX: 38, finish: 50, materials: M3, water: -7, spikes: spikesUnder(0, 16, -4), tip: "tip_portal", mult: 1.16 }),
+  L("vault", "Aperture Overpass", "Эстакада Апертуры", { x1: 14, y1: 6, plateau: 7, exitDX: 16, finishDX: 26, materials: M3, spikes: spikesUnder(0, 14, -0.4), tip: "tip_portal", mult: 1.2 }),
   L("pillar", "Graviton Needle", "Гравитонная игла", { x0: 0, rightX: 20, mid: 10, height: 2.8, deckMat: "steel_road", trussMat: "steel", materials: M3, water: -9, spikes: spikesUnder(0, 20, -5), tip: "tip_steel_road", mult: 1.16 }),
   L("cave", "Final Chamber", "Финальная камера", { x0: 0, x1: 20, height: 2.9, deckMat: "steel_road", trussMat: "steel", materials: M3, water: -8, spikes: spikesUnder(0, 20, -4), tip: "tip_spikes", mult: 1.15 }),
-  L("portal", "GLaDOS Gate", "Врата ГЛэДОС", { x1: 18, height: 2.9, highY: 10, exitX: 40, finish: 54, deckMat: "steel_road", trussMat: "steel", materials: M3, water: -7, tip: "tip_portal2", mult: 1.15 }),
+  L("chain3", "GLaDOS Gate", "Врата ГЛэДОС", { b1x1: 12, highY: 7, b2x0: 30, b2x1: 40, b1mat: "steel", b2mat: "steel", deckMat: "steel_road", materials: M3, tip: "tip_portal", mult: 1.2 }),
 ];
 
 // ----------------------------------------------------------------------------
@@ -224,9 +240,9 @@ const CH4 = [
   L("hump", "Snowdrift Wave", "Сугробная волна", { x0: 0, x1: 18, rise: 2.6, deckMat: "steel_road", trussMat: "steel", materials: M4, water: -8, tip: "tip_triangles", mult: 1.18 }),
   L("under", "Under the Ice", "Подо льдом", { x0: 0, x1: 18, height: 2.8, mode: "below", deckMat: "steel_road", trussMat: "steel", materials: M4, water: -10, tip: "tip_supports", mult: 1.18 }),
   L("flat", "Frozen Highway", "Ледяное шоссе", { x0: 0, x1: 20, height: 2.8, deckMat: "steel_road", trussMat: "steel", materials: M4, water: -8, spikes: spikesUnder(0, 20, -5), tip: "tip_spikes", mult: 1.18 }),
-  L("portal", "Frozen Gate", "Мёрзлые врата", { x1: 14, height: 2.7, highY: 8, exitX: 34, finish: 46, materials: M4, water: -7, tip: "tip_portal", mult: 1.18 }),
+  L("vault", "Frozen Gate", "Мёрзлые врата", { x1: 12, y1: 5, plateau: 7, exitDX: 14, finishDX: 24, deckMat: "steel_road", trussMat: "steel", materials: M4, tip: "tip_portal", mult: 1.2 }),
   L("bounce", "Snow Catapult", "Снежная катапульта", { edge: 4, landing: 26, deckY: 0, landingY: -4, materials: M4, water: -10, tip: "tip_mix", mult: 1.16 }),
-  L("portal", "Ice Portal", "Ледяной портал", { x1: 16, height: 2.8, highY: 9, exitX: 36, finish: 48, materials: M4, water: -7, tip: "tip_portal2", mult: 1.16 }),
+  L("launch", "Ice Portal", "Ледяной портал", { x1: 12, exitX: 22, exitY: 11, highY: 9, finish: 38, deckMat: "steel_road", trussMat: "steel", materials: M4, tip: "tip_portal", mult: 1.2 }),
   L("susp", "Summit Cableway", "Тросовый пик", { x0: 0, x1: 18, segments: 6, towerY: 9, towerInset: 2, cableMat: "cable", materials: M4, water: -9, tip: "tip_cable", mult: 1.16 }),
   L("pier", "Titan Pylon", "Титан-пилон", { x0: 0, x1: 28, pierX: 13, pierW: 2.8, pierY: -4, materials: M4, matRoad: "steel_road", matTruss: "steel", water: -10, tip: "tip_steel_road", mult: 1.16 }),
   L("islands", "Four Floes", "Четыре льдины", { gaps: [{ x0: 0, x1: 9 }, { x0: 12, x1: 21 }, { x0: 24, x1: 33 }, { x0: 36, x1: 45 }], mode: "below", height: 2.8, deckMat: "steel_road", trussMat: "steel", materials: M4, water: -10, tip: "tip_steel_road", mult: 1.16 }),
@@ -235,11 +251,11 @@ const CH4 = [
   L("pillar", "Frozen Needle", "Ледяная игла", { x0: 0, rightX: 24, mid: 12, height: 2.9, deckMat: "steel_road", trussMat: "steel", materials: M4, water: -10, spikes: spikesUnder(0, 24, -5), tip: "tip_steel_road", mult: 1.16 }),
   L("bounce", "Summit Catapult", "Катапульта вершины", { edge: 4, landing: 28, deckY: 0, landingY: -5, materials: M4, water: -11, spikes: spikesUnder(12, 28, -6), tip: "tip_mix", mult: 1.15 }),
   L("flat", "Polar Crossing", "Полярный переход", { x0: 0, x1: 26, height: 3.2, deckMat: "steel_road", trussMat: "steel", materials: M4, water: -10, spikes: spikesUnder(0, 26, -5), tip: "tip_stars", mult: 1.15 }),
-  L("portal", "Avalanche Gate", "Врата лавины", { x1: 18, height: 2.9, highY: 10, exitX: 40, finish: 52, deckMat: "steel_road", trussMat: "steel", materials: M4, water: -8, tip: "tip_portal", mult: 1.15 }),
+  L("chain2", "Avalanche Gate", "Врата лавины", { b1x1: 10, highY: 7, b2x0: 28, b2x1: 36, b1mat: "steel", b2mat: "steel", deckMat: "steel_road", materials: M4, tip: "tip_portal", mult: 1.2 }),
   L("king", "Crown of Peaks", "Корона вершин", { x0: 0, x1: 24, apexes: 2, rise: 3.4, stayMat: "cable", deckMat: "steel_road", materials: M4, water: -9, spikes: spikesUnder(0, 24, -5), tip: "tip_cable", mult: 1.15 }),
   L("pier", "Colossus Pier", "Опора колосса", { x0: 0, x1: 28, pierX: 13, pierW: 2.4, pierY: -4, materials: M4, matRoad: "steel_road", matTruss: "steel", water: -11, spikes: spikesUnder(0, 28, -6), tip: "tip_steel_road", mult: 1.14 }),
   L("islands", "Frozen Islands", "Мёрзлые острова", { gaps: [{ x0: 0, x1: 9 }, { x0: 12, x1: 21 }, { x0: 24, x1: 33 }], mode: "below", height: 2.9, deckMat: "steel_road", trussMat: "steel", materials: M4, water: -10, spikes: spikesUnder(0, 33, -6), tip: "tip_steel_road", mult: 1.14 }),
-  L("portal", "Glacier Gate", "Ледниковые врата", { x1: 20, height: 2.9, highY: 10, exitX: 42, finish: 56, deckMat: "steel_road", trussMat: "steel", materials: M4, water: -8, tip: "tip_portal", mult: 1.14 }),
+  L("chain3", "Glacier Gate", "Ледниковые врата", { b1x1: 12, highY: 7, b2x0: 30, b2x1: 40, b1mat: "steel", b2mat: "steel", deckMat: "steel_road", materials: M4, tip: "tip_portal", mult: 1.2 }),
   L("arch", "Ultimate Summit", "Абсолютная вершина", { x0: 0, x1: 26, rise: 3.0, deckMat: "steel_road", trussMat: "steel", materials: M4, water: -10, tip: "tip_stars", mult: 1.14 }),
 ];
 

@@ -464,10 +464,15 @@ function rendered() {
       w: 96, h: 96, outline: 3, pad: 3, yaw: -0.38, pitch: 0.12,
     }).layers.main;
   }
-  for (const id of [...DECKS, ...Object.keys(MEMBERS)]) out["mat_" + id] = materialIcon(id);
-  out.eraser = ic.render([{ mesh: ic.fromMesh(eraserMesh()), rz: 0.35 }], { w: 96, h: 64, outline: 2.5, pad: 2, yaw: -0.35, pitch: 0.45 }).layers.main;
   return out;
 }
+
+// Materials and eraser: classic, clear 2.5D/isometric icons preserved from earlier release
+const PRESERVED_ICONS = new Set([
+  "mat_road", "mat_steel_road", "mat_wood", "mat_steel",
+  "mat_rope", "mat_cable", "mat_boost", "mat_bounce",
+  "eraser",
+]);
 
 // Garage layers share a 208x128 frame but most of it is empty (a topper is a few pixels): store only
 // the opaque box and remember where it sits in the frame, so the atlas stays small.
@@ -517,11 +522,20 @@ function generate(root) {
     ic.save(path.join(dir, name + ".png"), im);
     out.push({ name, w: im.w, h: im.h, frame: im.frame });
   }
+  for (const name of PRESERVED_ICONS) {
+    const targetFile = path.join(dir, name + ".png");
+    if (fs.existsSync(targetFile)) {
+      const buf = fs.readFileSync(targetFile);
+      const w = buf.readUInt32BE(16);
+      const h = buf.readUInt32BE(20);
+      out.push({ name, w, h });
+    }
+  }
   writeSizes(out);
   return out;
 }
 
-module.exports = { generate, GLYPHS, rendered };
+module.exports = { generate, GLYPHS, rendered, PRESERVED_ICONS };
 
 if (require.main === module) {
   const list = generate(ROOT);

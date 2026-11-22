@@ -27,11 +27,42 @@ function escapeChars(chars) {
   return out;
 }
 
+// Every glyph used by the localization data. Keeping the font in sync with the strings
+// (instead of a hand-maintained pile of accents) means a new translation can never render
+// as empty boxes; tests/test_i18n.lua checks the same invariant.
+function translationChars(root) {
+  const files = [
+    "game/core/i18n.lua",
+    "game/core/names.lua",
+    "game/config/skins.lua",
+    "game/levels/chapter1.lua",
+    "game/levels/chapter2.lua",
+    "game/levels/chapter3.lua",
+    "game/levels/chapter4.lua",
+  ];
+  let chars = "";
+  for (const rel of files) {
+    let text;
+    try {
+      text = fs.readFileSync(path.join(root, rel), "utf8");
+    } catch {
+      continue;
+    }
+    for (const m of text.matchAll(/"((?:[^"\\]|\\.)*)"/g)) {
+      chars += m[1].replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+    }
+  }
+  return chars;
+}
+
 function font(root) {
   let chars = "";
   for (let c = 32; c <= 126; c++) chars += String.fromCharCode(c);
   chars += "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя";
-  chars += "—–•×→°«»…№";
+  // no U+2192 arrow: the bundled TTF has no glyph for it
+  chars += "—–•×°«»…№";
+  chars += translationChars(root);
+  chars = [...new Set(chars)].join("");
   write(root, "assets/fonts/main.font", `font: "/assets/fonts/Nunito-Black.ttf"
 material: "/builtins/fonts/font-df.material"
 size: 48

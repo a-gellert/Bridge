@@ -81,6 +81,17 @@ function M.move_pill(percent, px)
 	if s and s.move_pill then pcall(s.move_pill, percent or 0, px or 56) end
 end
 
+-- Player's language from Poki's URL (Poki links use ?iso_lang=de). Returns nil when the
+-- parameter is absent or the SDK is blocked, so boot.lua can fall back to the saved/system locale.
+function M.language()
+	local s = sdk()
+	if s and s.get_url_param then
+		local ok, value = pcall(s.get_url_param, "iso_lang")
+		if ok and type(value) == "string" and value ~= "" then return value end
+	end
+	return nil
+end
+
 function M.gameplay_start()
 	if gameplay or ad_active then return end
 	gameplay = true

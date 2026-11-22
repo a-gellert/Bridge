@@ -48,8 +48,9 @@ function M.check(level, opts)
 	for _, veh in ipairs(opts.vehicles or { "moto", "car", "truck" }) do
 		local run, ms = M.simulate(level, geo, bp, veh)
 		rep.results[veh] = run.status
+		if veh == "truck" then rep.portals = run.portals or 0 end
 		rep.detail = rep.detail or {}
-		rep.detail[veh] = { status = run.status, reason = run.reason, time = run.time, broken = run.broken, stress = ms }
+		rep.detail[veh] = { status = run.status, reason = run.reason, time = run.time, broken = run.broken, stress = ms, portals = run.portals or 0 }
 		say("   %-5s %-6s %-7s %-8s t=%5.2f broken=%d stress=%.2f  cost %d/%d", level.id, veh, run.status, tostring(run.reason), run.time, run.broken, ms, rep.cost, level.budget)
 	end
 

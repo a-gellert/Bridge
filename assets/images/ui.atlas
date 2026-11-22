@@ -257,12 +257,6 @@ images {
   image: "/assets/images/ui/mat_steel_road.png"
 }
 images {
-  image: "/assets/images/ui/mat_boost.png"
-}
-images {
-  image: "/assets/images/ui/mat_bounce.png"
-}
-images {
   image: "/assets/images/ui/mat_wood.png"
 }
 images {
@@ -273,6 +267,12 @@ images {
 }
 images {
   image: "/assets/images/ui/mat_cable.png"
+}
+images {
+  image: "/assets/images/ui/mat_boost.png"
+}
+images {
+  image: "/assets/images/ui/mat_bounce.png"
 }
 images {
   image: "/assets/images/ui/eraser.png"
