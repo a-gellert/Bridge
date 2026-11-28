@@ -20,7 +20,7 @@ end
 local function default_stats()
 	return {
 		attempts = 0, runs = 0, wins = 0, losses = 0, crashes = 0,
-		built = 0, erased = 0, portals = 0, bounces = 0, boosts = 0, tricks = 0,
+		built = 0, erased = 0, portals = 0, bounces = 0, boosts = 0, tricks = 0, stunt_score = 0,
 	}
 end
 
@@ -46,6 +46,7 @@ local function default()
 		wallet = 0,       -- leftover budget dollars, spent in the garage
 		skins = default_skins(),
 		achievements = {}, -- [id] = true
+		ftue = {},        -- [step] = true: one-shot FTUE analytics already reported
 		stats = default_stats(),
 	}
 end
@@ -155,6 +156,8 @@ function M.record_win(level, vehicle_stars, cost, opts)
 	local leftover = math.max(0, (level.budget or 0) - cost)
 	local salary = math.floor(leftover * 0.12) + vehicle_stars * 10
 	if opts.clean then salary = salary + 25 end
+	local stunt_cash = math.max(0, math.floor((opts.stunt_cash or 0) + 0.5))
+	salary = salary + stunt_cash
 	if not first_or_record then salary = math.max(5, math.floor(salary * 0.25)) end
 	d.wallet = (d.wallet or 0) + salary
 	M.save()
@@ -165,6 +168,7 @@ function M.record_win(level, vehicle_stars, cost, opts)
 		best_cost = st.best_cost,
 		new_record = prev_best == nil or cost < prev_best,
 		first_clear = prev == 0,
+		stunt_cash = stunt_cash,
 		salary = salary,
 		wallet = d.wallet,
 	}
@@ -301,7 +305,7 @@ function M.unlock_achievement(id, reward)
 	return true
 end
 
--- Every level of at least one chapter has 3 stars (18 stars per chapter).
+-- Every level of at least one chapter has 3 stars (40 levels per chapter = 120 stars).
 function M.any_chapter_full()
 	for _, ch in ipairs(levels.chapters) do
 		local full = true
@@ -325,6 +329,16 @@ end
 function M.set_setting(key, value)
 	ensure()[key] = value
 	M.save()
+end
+
+-- Returns true only the first time a FTUE milestone is reached for this profile.
+function M.ftue(step)
+	local d = ensure()
+	d.ftue = d.ftue or {}
+	if d.ftue[step] then return false end
+	d.ftue[step] = true
+	M.save()
+	return true
 end
 
 function M.get(key)

@@ -7,6 +7,7 @@ return {
 	circle = { 128, 128 },
 	ring = { 128, 128 },
 	glow = { 128, 128 },
+	vignette = { 256, 256 },
 	star = { 96, 96 },
 	star_slot = { 96, 96 },
 	undo = { 96, 96 },

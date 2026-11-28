@@ -72,6 +72,16 @@ function M.get(id)
 	return M.by_id[id]
 end
 
+-- Every material introduced at or before campaign level `index` (1-based), in catalog order.
+-- The toolbox only grows: once a material appears, later levels keep it available.
+function M.unlocked(index)
+	local out = {}
+	for _, m in ipairs(M.list) do
+		if m.unlock <= index then out[#out + 1] = m end
+	end
+	return out
+end
+
 -- Price of one beam of a given length (rounded to whole dollars).
 function M.beam_cost(id, len)
 	local m = M.by_id[id]

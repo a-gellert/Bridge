@@ -31,19 +31,66 @@ local function apply_skin(v)
 	end
 end
 
+local function make_view(def)
+	local v = { def = def, wheels = {}, mark_t = 0, smoke_t = 0 }
+	v.body = spawn.create(def.body_visual, 0, 0, 0)
+	if def.paint_visual then v.paint = spawn.create(def.paint_visual, 0, 0, 0) end
+	for i = 1, #def.wheels do
+		v.wheels[i] = spawn.create(def.wheel_visual, 0, 0, 0)
+	end
+	apply_skin(v)
+	v.shadow = spawn.create("shadow", 0, 0, 0, 0, def.body.w * 1.1, 1, 2.2)
+	spawn.tint(v.shadow, 0, 0, 0, 0.28)
+	return v
+end
+
+local function place_static(v, cx, cy, angle, geo)
+	local def = v.def
+	local ca, sa = cos_sin(angle or 0)
+	spawn.set(def.body_visual, v.body, cx, cy, 0, angle)
+	if v.paint then spawn.set(def.paint_visual, v.paint, cx, cy, 0, angle) end
+	local ws = v.wheel_skin and v.wheel_skin.scale or 1
+	for i, wh in ipairs(def.wheels) do
+		local x, y = cx + wh.x * ca - wh.y * sa, cy + wh.x * sa + wh.y * ca
+		spawn.set(def.wheel_visual, v.wheels[i], x, y, 0, angle, ws)
+	end
+	if v.topper and v.topper_skin then
+		local t = v.topper_skin
+		local mount = def.mounts and def.mounts[t.mount or "roof"]
+		local ox = mount and mount.x or 0
+		local oy = mount and mount.y or def.body.h * 0.5
+		local tx, ty = cx + ox * ca - oy * sa, cy + ox * sa + oy * ca
+		spawn.set(t.visual, v.topper, tx, ty, 0, angle, (def.topper_scale or 1) * (t.scale or 1))
+	end
+	-- a crisp contact shadow on the home bank
+	local h = geo and terrain.height_at(geo, cx, cy)
+	if h and cy - h < 3 then
+		local k = math.max(0.25, 1 - (cy - h) / 3)
+		spawn.set("shadow", v.shadow, cx, h + 0.17, 0, 0, def.body.w * (0.6 + 0.5 * k), 1, 2.2)
+		spawn.tint(v.shadow, 0, 0, 0, 0.3 * k)
+	else
+		spawn.tint(v.shadow, 0, 0, 0, 0)
+	end
+end
+
 function M.create(run)
 	M.destroy()
 	local def = run.vehicle_def
-	view = { def = def, wheels = {}, mark_t = 0, smoke_t = 0 }
-	view.body = spawn.create(def.body_visual, 0, 0, 0)
-	if def.paint_visual then view.paint = spawn.create(def.paint_visual, 0, 0, 0) end
-	for i = 1, #def.wheels do
-		view.wheels[i] = spawn.create(def.wheel_visual, 0, 0, 0)
-	end
-	apply_skin(view)
-	view.shadow = spawn.create("shadow", 0, 0, 0, 0, def.body.w * 1.1, 1, 2.2)
-	spawn.tint(view.shadow, 0, 0, 0, 0.28)
+	view = make_view(def)
 	M.update(run)
+end
+
+-- Static vehicle on the start pad while the player builds: the goal "carry THIS truck
+-- across" reads from the first second, before any tutorial text.
+function M.create_preview(level, vehicle_id, geo)
+	M.destroy()
+	local def = vehicles.get(vehicle_id)
+	if not def or not level then return end
+	view = make_view(def)
+	local sx = level.start
+	local ground = geo and terrain.height_at(geo, sx) or 0
+	local cy = ground + vehicles.ground_offset(def) + 0.04
+	place_static(view, sx, cy, 0, geo)
 end
 
 function M.update(run, geo)
@@ -59,6 +106,11 @@ function M.update(run, geo)
 		local x, y = v:wheel_pos(i)
 		spawn.set(view.def.wheel_visual, view.wheels[i], x, y, 0, wh.angle, ws)
 	end
+	-- a warm pulse while a stunt combo is alive: readable at a glance without extra HUD
+	local combo = run.stunts and run.stunts.combo or 0
+	local glow = combo >= 3 and (0.07 + 0.04 * math.sin((run.time or 0) * 12)) or 0
+	spawn.overlay(view.body, 1, 0.82, 0.3, glow)
+	if view.paint then spawn.overlay(view.paint, 1, 0.82, 0.3, glow) end
 	-- topper sits on its mount point (roof / rear), rotating with the chassis
 	if view.topper and view.topper_skin then
 		local t = view.topper_skin

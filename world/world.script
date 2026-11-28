@@ -16,10 +16,16 @@ local camera = require("world.camera")
 local level_view = require("world.level_view")
 local bridge_view = require("world.bridge_view")
 local guide_view = require("world.guide_view")
+local tutorial_view = require("world.tutorial_view")
 local vehicle_view = require("world.vehicle_view")
 local fx = require("world.fx")
 
 local ENGINE = "/sounds#engine"
+
+-- One-shot FTUE funnel event stored in the profile, sent to Poki exactly once.
+local function ftue(step)
+	if progress.ftue(step) then poki.measure("ftue", step, "1") end
+end
 
 local function level_bounds(level)
 	local a = level.area or { level.start, -4, level.finish, 6 }
@@ -59,6 +65,7 @@ local function show_menu_scene(self)
 	bridge_view.destroy()
 	bridge_view.sync(bp)
 	guide_view.clear()
+	tutorial_view.clear()
 	vehicle_view.destroy()
 	fx.clear()
 	fit_build(level, true)
@@ -72,11 +79,21 @@ local function on_level_loaded(self)
 	vehicle_view.destroy()
 	bridge_view.destroy()
 	guide_view.clear()
+	tutorial_view.clear()
 	level_view.build(level)
 	level_view.set_build_helpers(true)
 	bridge_view.sync(session.blueprint)
 	guide_view.sync(session)
+	tutorial_view.sync(session)
+	vehicle_view.create_preview(level, session.vehicle, session.geo)
 	fit_build(level, true)
+	-- Level analytics: one start per loaded level. If the previous unresolved level was
+	-- skipped (level screen / debug jump), close it as a fail first.
+	if self.measure_active then poki.level_end(self.measure_id, false) end
+	self.measure_id = level.id
+	self.measure_active = true
+	poki.level_start(level.id)
+	if session.index == 1 then ftue("level1_loaded") end
 end
 
 local function stop_engine(self)
@@ -93,33 +110,42 @@ local function handle_event(self, e)
 	elseif id == "design_changed" or id == "hint" then
 		if session.blueprint then bridge_view.sync(session.blueprint) end
 		guide_view.sync(session)
+		tutorial_view.sync(session)
+	elseif id == "vehicle_changed" then
+		if session.state == "build" and session.level then
+			vehicle_view.create_preview(session.level, session.vehicle, session.geo)
+		end
+	elseif id == "built" then
+		ftue("first_beam_built")
 	elseif id == "drive_started" then
 		level_view.set_build_helpers(false)
 		bridge_view.clear_build_helpers()
 		guide_view.clear()
+		tutorial_view.clear()
 		vehicle_view.create(session.run)
 		poki.gameplay_start()
-		poki.level_start(session.level and session.level.id)
-		self.measure_active = true
+		poki.measure("run", session.level and session.level.id, "start")
+		ftue("first_drive_started")
 		if audio.is_enabled() then
 			sound.play(ENGINE, { gain = 0.35 })
 			self.engine_on = true
 		end
 	elseif id == "drive_stopped" then
-		if self.measure_active then
-			poki.level_end(session.level and session.level.id, false)
-			self.measure_active = false
-		end
+		-- Building is gameplay too: never pair this with gameplay_stop / level_end.
 		vehicle_view.destroy()
 		fx.clear()
 		stop_engine(self)
-		poki.gameplay_stop()
 		camera.set_speed_fov(0)
 		level_view.set_build_helpers(true)
 		bridge_view.sync(session.blueprint)
 		guide_view.sync(session)
+		tutorial_view.sync(session)
+		if session.level then vehicle_view.create_preview(session.level, session.vehicle, session.geo) end
 		fit_build(session.level, false, 0.2)
 	elseif id == "result" then
+		-- Win cards and the "stuck?" assist card are a deliberate pause; the fast fail path
+		-- goes straight back to building, so it must not stop the play session.
+		if d.won or d.can_assist then poki.gameplay_stop() end
 		if not d.won then
 			camera.set_speed_fov(0)
 			fit_build(session.level, false, 0.2)
@@ -165,15 +191,42 @@ local function handle_event(self, e)
 			local cx, cy = session.run.vehicle:center()
 			fx.sparks(cx - 0.6, cy - 0.3, { 1, 0.62, 0.2 })
 		end
+	elseif id == "stunt" then
+		if d.kind == "flip" and session.run then
+			local cx, cy = session.run.vehicle:center()
+			fx.sparks(cx, cy, { 1, 0.82, 0.25 })
+			audio.play("star", 0.45, 1.25)
+			haptics.click()
+			camera.shake(0.06, 0.12)
+		elseif d.combo == 3 or d.combo == 5 then
+			audio.play("star", 0.5, 1.15)
+			camera.drama(0.5, 0.22)
+			haptics.click()
+			if session.run then
+				local cx, cy = session.run.vehicle:center()
+				fx.sparks(cx, cy, { 1, 0.85, 0.25 })
+			end
+		end
 	elseif id == "slowmo" then
 		camera.drama(1.0, 0.55)
 	elseif id == "run_finished" then
 		stop_engine(self)
-		poki.gameplay_stop()
 		camera.set_speed_fov(0)
-		poki.level_end(session.level and session.level.id, d.won)
-		self.measure_active = false
-		if d.won then haptics.win() else haptics.crash() end
+		poki.measure("run", session.level and session.level.id, d.won and "win" or tostring(d.reason))
+		if d.won and self.measure_active then
+			poki.level_end(self.measure_id, true)
+			self.measure_active = false
+		end
+		if d.won then
+			local lvl = session.level
+			if lvl and lvl.chapter_index == 1 then
+				local n = lvl.number
+				if n == 1 or n == 2 or n == 3 or n == 5 or n == 8 then ftue("level" .. n .. "_won") end
+			end
+			haptics.win()
+		else
+			haptics.crash()
+		end
 		if session.run then
 			local cx, cy = session.run.vehicle:center()
 			if d.won then
@@ -192,6 +245,10 @@ local function handle_event(self, e)
 	elseif id == "state" then
 		if d.state == "menu" then
 			stop_engine(self)
+			if self.measure_active then
+				poki.level_end(self.measure_id, false)
+				self.measure_active = false
+			end
 			poki.gameplay_stop()
 			show_menu_scene(self)
 		end
@@ -203,6 +260,7 @@ function init(self)
 	events.subscribe("world")
 	self.engine_on = false
 	self.measure_active = false
+	self.measure_id = nil
 	self.perf_t, self.perf_n = 0, 0
 	camera.set_window(window.get_size())
 	-- the GUI may have started a level before this script subscribed to events
@@ -245,6 +303,7 @@ function update(self, dt)
 		camera.set_speed_fov(0)
 		bridge_view.update_build(dt, session)
 		guide_view.update(dt)
+		tutorial_view.update(dt, session)
 	elseif (state == "drive" or state == "result") and session.run then
 		local run = session.run
 		bridge_view.update_drive(dt, run)

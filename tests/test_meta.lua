@@ -52,8 +52,8 @@ eq(progress.fail_streak(lvl.id), 0, "win clears the streak")
 assert(res.salary and res.salary > 0, "win pays a salary")
 eq(res.wallet, progress.wallet(), "result reports the wallet")
 
--- salary math: floor(90 * 0.12) + 3*10 + 25 = 65
-eq(res.salary, 65, "salary from leftover budget + clean + stars")
+-- salary math: floor(140 * 0.12) + 3*10 + 25 = 71
+eq(res.salary, 71, "salary from leftover budget + clean + stars")
 
 -- achievements unlock once and pay the reward
 local before = progress.wallet()

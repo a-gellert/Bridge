@@ -1,6 +1,6 @@
 -- Result popup over the drive view.
 -- Win: stars for the level, seamless auto-advance if 3 stars, biome switch prompt on level 8.
--- Fail: instant return to build mode (0.1s delay, 0.2s camera return, saved blueprint preserved).
+-- Fail: the session holds a short collapse beat; the cheap retry path returns to build instantly.
 local ui = require("gui.ui")
 local i18n = require("game.core.i18n")
 local session = require("game.core.session")
@@ -116,9 +116,18 @@ function M.build(app, root, res)
 
 		-- Button 2: Continue in current setting (Level 9)
 		local btn2_lbl = i18n.f("biome_offer_stay", string.format("%d-%d", ch_index, lvl_num + 1))
-		ui.btn(panel, 0, top - 410, pw - 80, 76, btn2_lbl, function()
+		local show_portal = ch_index < 3
+		local half = (pw - 90) / 2
+		ui.btn(panel, show_portal and -half / 2 - 5 or 0, top - 410, show_portal and half or pw - 80, 76, btn2_lbl, function()
 			app.next_level()
-		end, { color = ui.PANEL_LT, size = 26 })
+		end, { color = ui.PANEL_LT, size = 24 })
+		-- Early wow moment: the Quantum Lab is always open, so a curious player can taste
+		-- portals right after the first biome milestone instead of waiting for level 81.
+		if show_portal then
+			ui.pulse(ui.btn(panel, half / 2 + 5, top - 410, half, 76, i18n.t("biome_offer_portal"), function()
+				app.start_level(levels.chapters[3] and levels.chapters[3].first or 81)
+			end, { icon = "portal", icon_size = 32, color = ui.PURPLE, size = 22 }), 1.04, 0.6)
+		end
 
 		-- Wrench / fix button in corner
 		ui.btn(panel, -pw / 2 + 50, top - 46, 68, 60, "", function()
@@ -198,6 +207,13 @@ function M.build(app, root, res)
 		ui.text(panel, i18n.t("salary"), -bw / 2, top - 440, 22, ui.DIM, gui.PIVOT_W)
 		ui.icon(panel, "coin", bw / 2 - 13, top - 440, 26, ui.STAR)
 		ui.text(panel, i18n.f("salary_gain", i18n.money(res.salary)), bw / 2 - 34, top - 440, 24, ui.GREEN, gui.PIVOT_E)
+	end
+	if (res.stunt_score or 0) > 0 then
+		ui.icon(panel, "star", -bw / 2 + 13, top - 468, 24, ui.YELLOW)
+		ui.text(panel, "+" .. res.stunt_score, -bw / 2 + 34, top - 468, 22, ui.YELLOW, gui.PIVOT_W)
+		if (res.max_combo or 0) > 1 then
+			ui.text(panel, "x" .. res.max_combo, bw / 2, top - 468, 22, ui.WHITE, gui.PIVOT_E)
+		end
 	end
 
 	-- buttons

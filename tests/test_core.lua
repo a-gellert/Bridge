@@ -58,6 +58,21 @@ local after = 0
 for _ in pairs(bp.nodes) do after = after + 1 end
 eq(after, before, "joint at 3,0 still used by the second road")
 
+-- campaign materials are cumulative: an unlock never disappears on later levels
+local function unlock_level(index, mats)
+	return {
+		index = index, budget = 1000, materials = mats,
+		ground = { { -10, 0, 0 }, { 6, 20, 0 } }, anchors = { { 0, 0 }, { 6, 0 } },
+		area = { -1, -3, 7, 4 }, start = -5, finish = 10,
+	}
+end
+local bp_mid = Blueprint.new(unlock_level(5, { "road", "wood" }), geo)
+assert(bp_mid.allowed["rope"], "rope stays available after its unlock level")
+assert(not bp_mid.allowed["steel"], "steel is locked before its unlock level")
+local bp_late = Blueprint.new(unlock_level(20, { "road", "wood", "steel" }), geo)
+assert(bp_late.allowed["rope"] and bp_late.allowed["steel"], "earlier unlocks accumulate")
+assert(not bp_late.allowed["cable"], "future material stays locked")
+
 -- undo
 local n = bp:beam_count()
 assert(bp:undo())

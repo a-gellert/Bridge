@@ -57,6 +57,25 @@ const GLYPHS = {
     for (let r = 62; r > 2; r -= 2) c.draw(SDF.circle(64, 64, r), W, 0.035);
     return c;
   },
+  // Cinematic edge darkening. White RGB, alpha grows towards the corners; the GUI tints it
+  // with a theme/ink colour. Stretched to the virtual canvas, so it reads as a soft lens vignette.
+  vignette: () => {
+    const n = 256;
+    const c = new Canvas(n, n);
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        const dx = (x + 0.5 - n / 2) / (n / 2);
+        const dy = (y + 0.5 - n / 2) / (n / 2);
+        const r = Math.min(1, Math.hypot(dx, dy) / 1.24);
+        const t = Math.max(0, (r - 0.4) / 0.6);
+        const a = Math.pow(t, 1.7) * 0.72;
+        const i = (y * n + x) * 4;
+        c.data[i] = 255; c.data[i + 1] = 255; c.data[i + 2] = 255;
+        c.data[i + 3] = Math.round(a * 255);
+      }
+    }
+    return c;
+  },
   star: () => icon((c, h) => c.draw(SDF.star(h, h + 3, 44, 19), W)),
   star_slot: () => icon((c, h) => c.draw(SDF.sub(SDF.star(h, h + 3, 44, 19), SDF.star(h, h + 3, 27, 10.5)), W)),
   undo: () => icon((c) => {

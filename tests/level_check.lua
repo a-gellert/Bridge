@@ -2,8 +2,31 @@
 local Blueprint = require("game.bridge.blueprint")
 local terrain = require("game.physics.terrain")
 local Run = require("game.core.run")
+local tuning = require("game.config.tuning")
 
 local M = {}
+
+-- Coordinates the player can actually reach with the build grid (anchors and the reference
+-- solution). Returns a list of human-readable errors.
+function M.grid_errors(level)
+	local g = tuning.GRID
+	local out = {}
+	local function on_grid(v)
+		return math.abs(v / g - math.floor(v / g + 0.5)) < 1e-6
+	end
+	for i, a in ipairs(level.anchors or {}) do
+		if not on_grid(a[1]) or not on_grid(a[2]) then
+			out[#out + 1] = string.format("anchor #%d (%g,%g) is off the %gm grid", i, a[1], a[2], g)
+		end
+	end
+	for i, b in ipairs(level.solution or {}) do
+		if not on_grid(b[2]) or not on_grid(b[3]) or not on_grid(b[4]) or not on_grid(b[5]) then
+			out[#out + 1] = string.format("solution beam #%d (%g,%g-%g,%g) is off the %gm grid",
+				i, b[2], b[3], b[4], b[5], g)
+		end
+	end
+	return out
+end
 
 function M.simulate(level, geo, bp, veh)
 	local run = Run.new(level, geo, bp, veh)

@@ -1,5 +1,5 @@
 -- Build-mode gestures, identical on mouse and touch:
---   drag from a joint          -> ghost beam, release to build (end joint stays selected)
+--   drag from a joint          -> ghost beam, release to build (the drag ends unarmed)
 --   tap a joint, tap a point   -> build from the selected joint (chain building, finger never hides the target)
 --   tap the selected joint     -> deselect
 --   drag empty space           -> pan,  pinch / mouse wheel -> zoom
@@ -45,8 +45,19 @@ local function tol_world()
 	return px * M.px_scale * camera.world_per_px()
 end
 
+-- Joint magnetic snap. Anchors get a small bias so a finger near a bank prefers the visible
+-- red anchor over a free joint that happens to be a little closer.
+local ANCHOR_BIAS = 0.35
 local function find_node(x, y, tol)
-	return session.blueprint:nearest_node(x, y, tol)
+	local best, best_score
+	for _, n in pairs(session.blueprint.nodes) do
+		local d = dist(x, y, n.x, n.y)
+		if d <= tol then
+			local score = d - (n.anchor and ANCHOR_BIAS or 0)
+			if not best_score or score < best_score then best, best_score = n, score end
+		end
+	end
+	return best
 end
 
 -- End point of a beam from joint `from` aimed at screen point (sx, sy); nil if nothing fits.
@@ -61,14 +72,24 @@ local function to_world_drag(sx, sy)
 	return to_world(sx, sy + off)
 end
 
+-- Screen point -> beam end. While dragging on touch, the raw finger point gets the first
+-- chance to grab a real joint/anchor (the player sees it under the finger); only when the
+-- finger is over empty space does the "floating above the hand" offset aim at the grid.
 local function target_from(from, sx, sy, drag)
-	local wx, wy
+	local max_len = Blueprint.max_len(session.material)
+	local tol = tol_world()
 	if drag then
-		wx, wy = to_world_drag(sx, sy)
-	else
-		wx, wy = to_world(sx, sy)
+		local rwx, rwy = to_world(sx, sy)
+		local n = find_node(rwx, rwy, tol)
+		if n and n.id ~= from.id then
+			local d = snap.dist(from.x, from.y, n.x, n.y)
+			if d <= max_len and d >= tuning.MIN_BEAM then return n.x, n.y end
+		end
+		local wx, wy = to_world_drag(sx, sy)
+		return snap.beam_target(from.x, from.y, wx, wy, max_len, find_node, tol)
 	end
-	return snap.beam_target(from.x, from.y, wx, wy, Blueprint.max_len(session.material), find_node, tol_world())
+	local wx, wy = to_world(sx, sy)
+	return snap.beam_target(from.x, from.y, wx, wy, max_len, find_node, tol)
 end
 
 local function show_preview(from, sx, sy, drag)
@@ -118,14 +139,18 @@ local function update_hover(sx, sy)
 	end
 end
 
-local function build_preview()
+-- `keep_selection` is true only for the deliberate tap-tap chain: a finished drag build must
+-- not leave an end joint armed, or the next tap on empty space grows a stray beam.
+local function build_preview(keep_selection)
 	local p = session.preview
 	session.set_preview(nil)
 	if not p then return false end
 	local ok = session.try_build(p.x1, p.y1, p.x2, p.y2)
-	if ok then
+	if ok and keep_selection then
 		local n = session.blueprint:node_at(p.x2, p.y2)
 		session.selected_node = n and n.id or nil
+	elseif ok then
+		session.selected_node = nil
 	end
 	return ok
 end
@@ -209,6 +234,8 @@ local function release(sx, sy)
 			session.try_build(p.x1, p.y1, p.x2, p.y2) -- emits build_failed with the reason
 			session.set_preview(nil)
 		end
+		-- A drag is self-contained: never leave the start joint armed after release.
+		session.selected_node = nil
 	elseif mode == "node_press" then
 		local sel = selected()
 		local node = bp.nodes[st.node]
@@ -217,10 +244,16 @@ local function release(sx, sy)
 			session.selected_node = nil
 			session.set_preview(nil)
 		elseif sel then
+			-- A distant joint is a new selection, not a request for a clamped stray beam.
+			if snap.dist(sel.x, sel.y, node.x, node.y) > Blueprint.max_len(session.material) + tol_world() then
+				session.selected_node = node.id
+				session.set_preview(nil)
+				return
+			end
 			local x, y = target_from(sel, sx, sy)
 			if x then
 				session.set_preview(sel.x, sel.y, x, y)
-				if not build_preview() then session.selected_node = node.id end
+				if not build_preview(true) then session.selected_node = node.id end
 			else
 				session.selected_node = node.id
 			end
@@ -230,10 +263,18 @@ local function release(sx, sy)
 	elseif mode == "place_press" then
 		local sel = selected()
 		if sel then
+			-- Tapping far away (or on empty background) dismisses the armed joint instead of
+			-- building a beam that would be clipped to the material's max length.
+			local wx, wy = to_world(sx, sy)
+			if snap.dist(sel.x, sel.y, wx, wy) > Blueprint.max_len(session.material) + tol_world() then
+				session.selected_node = nil
+				session.set_preview(nil)
+				return
+			end
 			local x, y = target_from(sel, sx, sy)
 			if x then
 				session.set_preview(sel.x, sel.y, x, y)
-				build_preview()
+				build_preview(true)
 			end
 		end
 	elseif mode == "pan_press" then

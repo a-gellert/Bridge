@@ -1,6 +1,7 @@
 // Campaign v2: hand-flavoured levels for all four chapters.
-// Keeps the six showcase levels of every chapter and replaces 7..40 with varied
-// hand-designed archetypes. Every level is validated with the headless XPBD sim.
+// Keeps the first hand-made levels of every chapter (1-1..1-10 in Green Valley,
+// 2-1..2-6 / 3-1..3-6 / 4-1..4-6 elsewhere) and rebuilds the rest from archetypes.
+// Every generated level is validated with the headless XPBD sim.
 //
 //   node tools/gen/build_campaign.js            (validate only)
 //   node tools/gen/build_campaign.js --write    (write chapter files)
@@ -18,6 +19,8 @@ const { levelToLua } = require("./gen_campaign_40");
 const { loadAllChapters } = require("../editor_server");
 
 const ROOT = path.resolve(__dirname, "../..");
+// Levels that are authored and preserved verbatim by the generator.
+const HANDMADE = { 1: 10, 2: 6, 3: 6, 4: 6 };
 
 const M1 = ["road", "wood"];
 const M1R = ["road", "wood", "rope"];
@@ -99,10 +102,6 @@ function buildSpec(spec, id) {
 // Chapter 1: Green Valley (road, wood; steel later)
 // ----------------------------------------------------------------------------
 const CH1 = [
-  L("flat", "Valley Span", "Пролёт долины", { x0: 0, x1: 9, height: 2.4, materials: M1, water: -4, tip: "tip_triangles", mult: 1.3 }),
-  L("islands", "Island Hop", "По островкам", { gaps: [{ x0: 0, x1: 6 }, { x0: 10, x1: 16 }], mode: "above", height: 2.2, materials: M1, water: -4, tip: "tip_triangles", mult: 1.28 }),
-  L("arch", "Rainbow Arch", "Радужная арка", { x0: 0, x1: 11, rise: 1.5, materials: M1, water: -4, tip: "tip_triangles", mult: 1.28 }),
-  L("cave", "Fox Hole", "Лисья нора", { x0: 0, x1: 9, height: 2.2, materials: M1, water: -4, tip: "tip_supports", mult: 1.3 }),
   L("slope", "Ridge Road", "Дорога на гребень", { x0: 0, x1: 10, y0: 0, y1: 3, height: 2.4, materials: M1, water: -5, tip: "tip_triangles", mult: 1.28 }),
   L("king", "King's Post", "Королевский столб", { x0: 0, x1: 7, rise: 2.0, stayMat: "wood", materials: M1R, water: -4, tip: "tip_rope", mult: 1.3 }),
   L("under", "Under-Slung", "Подвесной настил", { x0: 0, x1: 10, height: 2.2, mode: "below", materials: M1, water: -6, tip: "tip_supports", mult: 1.28 }),
@@ -297,20 +296,21 @@ function main() {
   const chapterArg = args.find((a) => a.startsWith("--chapter="));
   const only = chapterArg ? Number(chapterArg.split("=")[1]) : null;
   const loaded = loadAllChapters();
-  const firstSix = {};
-  for (const ch of loaded) firstSix[ch.chapterIndex] = ch.levels.slice(0, 6);
+  const preserved = {};
+  for (const ch of loaded) preserved[ch.chapterIndex] = ch.levels.slice(0, HANDMADE[ch.chapterIndex]);
 
   let failed = false;
   const report = {};
   for (const chNum of [1, 2, 3, 4]) {
     if (only && chNum !== only) continue;
     const specs = CHAPTERS[chNum];
-    if (specs.length !== 34) throw new Error(`chapter ${chNum} has ${specs.length} specs`);
-    const levels = firstSix[chNum].slice();
+    const kept = HANDMADE[chNum];
+    if (specs.length !== 40 - kept) throw new Error(`chapter ${chNum} has ${specs.length} specs for ${40 - kept} generated levels`);
+    const levels = preserved[chNum].slice();
     const sigs = new Set(levels.map(signature));
     report[chNum] = [];
     for (let i = 0; i < specs.length; i++) {
-      const num = i + 7;
+      const num = i + kept + 1;
       const id = `${chNum}-${num}`;
       const lvl = buildSpec(specs[i], id);
       lvl.tip = specs[i].opts.tip;

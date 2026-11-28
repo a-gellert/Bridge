@@ -23,6 +23,12 @@ local function budget_color(r)
 	return ui.RED
 end
 
+-- First-level onboarding: the idle plate asks for the road first, then for the GO button.
+local function tutorial_text()
+	if session.tutorial_step() == "go" then return i18n.t("plan_done") end
+	return session.tutorial and i18n.t("tip_first") or ""
+end
+
 function M.refresh(app)
 	if not h.root then return end
 	local bp = session.blueprint
@@ -50,6 +56,9 @@ function M.refresh(app)
 		if h.clear_armed and n ~= h.clear_count then h.clear_armed = nil end
 		local c = h.clear_armed and ui.RED or ui.PANEL_LT
 		gui.set_color(h.clear_node, vmath.vector4(c.x, c.y, c.z, n == 0 and 0.45 or 1))
+	end
+	if h.tutorial_txt then
+		ui.set_label(h.tutorial_txt, h.tutorial_comp, tutorial_text())
 	end
 end
 
@@ -123,10 +132,16 @@ function M.build(app, root)
 	local ml, mr, mt, mb = layout.margins(vw, vh, 14)
 	local m = ml
 	local lvl = session.level
+	-- First-level onboarding: zero text and zero secondary tools. Only Road + GO are on
+	-- screen until the player has crossed 1-1 once.
+	local onboarding = session.tutorial == true
+	local show_hint = not onboarding
+	local show_erase = not onboarding
+	local show_vehicles = not onboarding
 	-- the top bar needs ~1180 units for one row; the bottom bar only as much as its buttons take,
 	-- so 4:3 / 16:10 screens keep a single bottom row and more room for the bridge
 	local mats = session.available_materials()
-	local nm = #mats + 1 -- + eraser
+	local nm = #mats + (show_erase and 1 or 0)
 	local tstk = app.portrait or vw < 1180
 	local stacked = app.portrait or vw < ml + mr + 590 + nm * 70
 	local top_w = vw - ml - mr
@@ -159,7 +174,7 @@ function M.build(app, root)
 	if tstk then
 		ui.label(top, title, -tw / 2 + 108, row1, 32, ui.WHITE, tw - 340, 1, gui.PIVOT_W)
 		ui.stars(top, tw / 2 - 168, row1, 30, stars, 32)
-		hint_button(tw / 2 - 54, row1, 88, 72, 42)
+		if show_hint then hint_button(tw / 2 - 54, row1, 88, 72, 42) end
 	else
 		-- stars follow the title; the title zone is capped so they never reach the budget pill
 		local title_w = math.min(tw * 0.26, 360)
@@ -196,7 +211,7 @@ function M.build(app, root)
 		end
 	end, { icon = "trash", icon_size = 38 })
 	h.clear_node = clear_node
-	if not tstk then
+	if not tstk and show_hint then
 		hint_button(tw / 2 - 30, row2, 60, bh_top, 36)
 	end
 
@@ -214,33 +229,49 @@ function M.build(app, root)
 	local bot = ui.panel(root, vw / 2, mb + bottom_h / 2, top_w, bottom_h, ui.PANEL, 22)
 	ui.blocker(bot)
 
-	-- vehicles + GO
+	-- vehicles + GO (the first level hides the garage choice: the truck carries the player
+	-- across 1-1 and the screen stays focused on Road -> GO)
 	local vb_w, vb_h, go_w = 96, 108, stacked and 220 or 190
-	local veh_total = 3 * vb_w + 2 * 10 + 16 + go_w
+	local veh_total = (show_vehicles and (3 * vb_w + 2 * 10 + 16) or 0) + go_w
 	local vx0 = stacked and (vw / 2 - veh_total / 2) or (vw - mr - 14 - veh_total)
-	for i, v in ipairs(vehicles.list) do
-		veh_button(app, root, vx0 + vb_w / 2 + (i - 1) * (vb_w + 10), veh_row_y, vb_w, vb_h, v)
+	if show_vehicles then
+		for i, v in ipairs(vehicles.list) do
+			veh_button(app, root, vx0 + vb_w / 2 + (i - 1) * (vb_w + 10), veh_row_y, vb_w, vb_h, v)
+		end
+		-- Two truck collapses in a row: point at the lighter car once per level. It is not a
+		-- modal, just a soft pulse + one toast; the player keeps full control.
+		if session.vehicle == "truck" and progress.stars(lvl.id) == 0 and progress.fail_streak(lvl.id) >= 2 then
+			local flag = "light_vehicle_tip_" .. lvl.id
+			if not progress.get(flag) then
+				progress.set_setting(flag, true)
+				app.toast_next = { text = i18n.t("tip_light_vehicle"), color = ui.YELLOW }
+			end
+			if h.vehs.car then ui.pulse(h.vehs.car, 1.06, 0.55) end
+		end
 	end
-	local go_x = vx0 + 3 * vb_w + 2 * 10 + 16 + go_w / 2
+	local go_x = vx0 + (show_vehicles and (3 * vb_w + 2 * 10 + 16) or 0) + go_w / 2
 	local go_node = ui.btn(root, go_x, veh_row_y, go_w, vb_h, i18n.t("go"), function() launch(app) end,
 		{ color = ui.GREEN, icon = "play", icon_size = 44, size = 40 })
-	ui.pulse(go_node, 1.03, 0.7)
+	ui.pulse(go_node, session.tutorial_ready() and 1.07 or 1.03, session.tutorial_ready() and 0.45 or 0.7)
+	h.go_node = go_node
 
-	-- materials (+ eraser)
+	-- materials (+ eraser on every level except the one-time onboarding)
 	local mat_area_w = stacked and (top_w - 24) or (vx0 - m - 30)
-	local mb_w = math.max(62, math.min(100, (mat_area_w - (nm - 1) * 8) / nm))
+	local mb_w = math.max(62, math.min(100, (mat_area_w - math.max(0, nm - 1) * 8) / math.max(1, nm)))
 	local mb_h = stacked and 116 or 112
-	local mx0 = stacked and (vw / 2 - (nm * mb_w + (nm - 1) * 8) / 2) or (m + 16)
+	local mx0 = stacked and (vw / 2 - (nm * mb_w + math.max(0, nm - 1) * 8) / 2) or (m + 16)
 	for i, mat in ipairs(mats) do
 		mat_button(app, root, mx0 + mb_w / 2 + (i - 1) * (mb_w + 8), mat_row_y, mb_w, mb_h, mat)
 	end
-	local ex = mx0 + mb_w / 2 + #mats * (mb_w + 8)
-	local enode = ui.box(root, "btn", ex, mat_row_y, mb_w, mb_h, ui.PANEL_LT)
-	gui.set_slice9(enode, vmath.vector4(16, 16, 16, 24))
-	ui.icon(enode, "eraser", 0, mb_h * 0.14, math.min(56, mb_w - 16))
-	ui.label(enode, i18n.t("erase"), 0, -mb_h * 0.28, 20, ui.WHITE, mb_w - 8)
-	ui.button(enode, function() toggle_erase(app) end)
-	h.erase = enode
+	if show_erase then
+		local ex = mx0 + mb_w / 2 + #mats * (mb_w + 8)
+		local enode = ui.box(root, "btn", ex, mat_row_y, mb_w, mb_h, ui.PANEL_LT)
+		gui.set_slice9(enode, vmath.vector4(16, 16, 16, 24))
+		ui.icon(enode, "eraser", 0, mb_h * 0.14, math.min(56, mb_w - 16))
+		ui.label(enode, i18n.t("erase"), 0, -mb_h * 0.28, 20, ui.WHITE, mb_w - 8)
+		ui.button(enode, function() toggle_erase(app) end)
+		h.erase = enode
+	end
 
 	-- HUD covers the screen top/bottom: tell the camera so the bridge stays in the free area
 	camera.set_insets((top_h + mt + 6) / vh, (bottom_h + mb + 6) / vh)
@@ -262,6 +293,21 @@ function M.build(app, root)
 	h.err_txt, h.err_comp = ui.label(h.info, "", 0, 2, 24, ui.WHITE, h.err_w - 28, 2)
 	gui.set_enabled(h.info, false)
 
+	-- First-level onboarding: no blocker, no wall of text. The animated drag cue lives in the
+	-- world; this small plate appears only when the player has been idle for a few seconds.
+	if onboarding then
+		local tw2 = math.min(620, vw - 40)
+		local tip = ui.panel(root, vw / 2, vh - mt - top_h - 62, tw2, 86, ui.hex("#21382D", 0.95), 22)
+		ui.panel(tip, -tw2 / 2 + 6, 0, 10, 86, ui.GREEN, 5)
+		ui.box(tip, "circle", -tw2 / 2 + 44, 0, 58, 58, ui.hex("#35C97E", 0.2))
+		ui.icon(tip, "hand", -tw2 / 2 + 44, 0, 42, ui.GREEN)
+		h.tutorial_txt, h.tutorial_comp = ui.label(tip, tutorial_text(), 28, 0, 24, ui.WHITE, tw2 - 100, 2)
+		ui.fade_in(tip, 0.3, 0.2)
+		gui.set_enabled(tip, false)
+		h.tutorial = tip
+		h.idle = 0
+	end
+
 	-- tip banner: early levels teach only after the player has actually fallen.
 	local tip_key = lvl.tip
 	local new = session.new_materials()
@@ -269,7 +315,7 @@ function M.build(app, root)
 	if not tip_text and #new > 0 then tip_text = i18n.f("new_material", i18n.t(new[1].name_key)) end
 	local early = lvl.index <= 5
 	local learned = progress.stats().losses > 0 or progress.fail_streak(lvl.id) > 0
-	if lvl.index == 1 or (early and not learned) then tip_text = nil end
+	if lvl.index == 1 or session.tutorial or (early and not learned) then tip_text = nil end
 	if tip_text and not app.tip_shown[lvl.id] then
 		app.tip_shown[lvl.id] = true
 		local tw2 = math.min(760, vw - 40)
@@ -288,6 +334,16 @@ function M.build(app, root)
 	M.refresh(app)
 end
 
+-- Called on any touch/key: the onboarding plate disappears while the player is active.
+function M.note_input()
+	if not h then return end
+	h.idle = 0
+	if h.tutorial and h.tutorial_shown then
+		h.tutorial_shown = false
+		gui.set_enabled(h.tutorial, false)
+	end
+end
+
 function M.update(app, dt)
 	if not h.root then return end
 	if h.clear_armed then
@@ -295,6 +351,35 @@ function M.update(app, dt)
 		if h.clear_armed <= 0 then
 			h.clear_armed = nil
 			M.refresh(app)
+		end
+	end
+	-- Onboarding plate: silent for 4 s of idling, readable for 7 s, then quiet again.
+	-- It never blocks the world and disappears as soon as the banks are connected.
+	if h.tutorial and session.tutorial then
+		if session.tutorial_ready() then
+			if h.tutorial_shown then
+				h.tutorial_shown = false
+				gui.set_enabled(h.tutorial, false)
+			end
+			if not h.go_ready then
+				h.go_ready = true
+				ui.pulse(h.go_node, 1.09, 0.42)
+			end
+		else
+			h.idle = (h.idle or 0) + dt
+			if not h.tutorial_shown and h.idle >= 4 then
+				h.tutorial_shown = true
+				h.tutorial_t = 7
+				gui.set_enabled(h.tutorial, true)
+				ui.fade_in(h.tutorial, 0.3, 0)
+			elseif h.tutorial_shown then
+				h.tutorial_t = (h.tutorial_t or 7) - dt
+				if h.tutorial_t <= 0 then
+					h.tutorial_shown = false
+					h.idle = 0
+					gui.set_enabled(h.tutorial, false)
+				end
+			end
 		end
 	end
 	-- ghost label near the beam end, kept in the free band between the top bar and the bottom bar
@@ -339,7 +424,9 @@ function M.on_event(app, e)
 	elseif id == "built" then
 		audio.play("build", 0.8, 0.9 + math.random() * 0.2)
 		haptics.build()
-		if session.index == 1 and not progress.get("tutorial_done") then progress.set_setting("tutorial_done", true) end
+		if session.tutorial and session.tutorial_ready() then
+			app.toast(i18n.t("plan_done"), ui.GREEN)
+		end
 		if session.guide and session.guide_done() then
 			app.toast(i18n.t("plan_done"), ui.CYAN)
 		end

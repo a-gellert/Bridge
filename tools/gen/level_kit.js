@@ -16,6 +16,18 @@ const materials = {
 // Round to the 1 cm grid used by the blueprint node keys.
 const R = (v) => Math.round(v * 100) / 100;
 
+// Snap a polyline to the 1 m building grid (GRID = 1 in game/config/tuning.lua) and drop
+// repeated points. Used by levels that must be reproducible by a human finger.
+function snapPoints(points) {
+  const out = [];
+  for (const p of points) {
+    const q = [Math.round(p[0]), Math.round(p[1])];
+    const last = out[out.length - 1];
+    if (!last || last[0] !== q[0] || last[1] !== q[1]) out.push(q);
+  }
+  return out.length >= 2 ? out : points.map((p) => [R(p[0]), R(p[1])]);
+}
+
 function dedupe(list) {
   const seen = new Set();
   const out = [];
@@ -115,10 +127,11 @@ function spanLevel(o) {
       if (Math.hypot(dx, dy) <= maxDeck && Math.hypot(Math.abs(dx), h0 + Math.abs(dy)) <= maxTruss) break;
     }
   }
-  const path = [];
+  let path = [];
   for (let k = 0; k <= segments; k++) {
     path.push([x0 + ((x1 - x0) * k) / segments, y0 + ((y1 - y0) * k) / segments]);
   }
+  if (o.snapToGrid) path = snapPoints(path);
   const t = trussOver(path, {
     deckMat,
     trussMat,
@@ -175,8 +188,9 @@ function pathLevel(o) {
   const deckMat = o.deckMat || "road";
   const trussMat = o.trussMat || "wood";
   const h = o.height == null ? 2.4 : o.height;
-  const t = trussOver(o.points, { deckMat, trussMat, height: h, mode: o.mode, diagonals: o.diagonals });
-  const first = o.points[0], last = o.points[o.points.length - 1];
+  const points = o.snapToGrid ? snapPoints(o.points) : o.points;
+  const t = trussOver(points, { deckMat, trussMat, height: h, mode: o.mode, diagonals: o.diagonals });
+  const first = points[0], last = points[points.length - 1];
   const blocks = [...(o.blocks || [])];
   if ((o.mode || "above") !== "below" && o.topBlocks !== false) {
     blocks.push([first[0] - 5, first[1] + h, first[0], first[1] + h + 2]);
@@ -275,8 +289,9 @@ function kingpostLevel(o) {
   const deckMax = materials[deckMat].max * 0.99;
   const stayMax = materials[stayMat].max * 0.97;
   const n = o.segments || Math.max(2, Math.ceil(Math.abs(x1 - x0) / (deckMax * 0.98)));
-  const path = [];
+  let path = [];
   for (let k = 0; k <= n; k++) path.push([R(x0 + ((x1 - x0) * k) / n), R(y0 + ((y1 - y0) * k) / n)]);
+  if (o.snapToGrid) path = snapPoints(path);
   const sol = [];
   for (let k = 0; k < path.length - 1; k++) sol.push([deckMat, path[k][0], path[k][1], path[k + 1][0], path[k + 1][1]]);
   const apexCount = o.apexes || 1;
@@ -350,8 +365,9 @@ function islandsLevel(o) {
     const y0 = gi === 0 ? (o.startY == null ? 0 : o.startY) : y;
     const y1 = gi === o.gaps.length - 1 ? (o.endY == null ? 0 : o.endY) : y;
     const n = Math.max(2, Math.ceil(Math.abs(g.x1 - g.x0) / bay));
-    const path = [];
+    let path = [];
     for (let k = 0; k <= n; k++) path.push([R(g.x0 + ((g.x1 - g.x0) * k) / n), R(y0 + ((y1 - y0) * k) / n)]);
+    if (o.snapToGrid) path = snapPoints(path);
     const t = trussOver(path, {
       deckMat,
       trussMat,
@@ -409,7 +425,7 @@ function pillarLevel(o) {
     }
     const pts = [];
     for (let k = 0; k <= n; k++) pts.push([R(xa + ((xb - xa) * k) / n), R(ya + ((yb - ya) * k) / n)]);
-    return pts;
+    return o.snapToGrid ? snapPoints(pts) : pts;
   };
   const lp = pathTo(o.x0, y0, mid, y0);
   const rp = pathTo(mid, y0, rightX, y1);
@@ -841,10 +857,11 @@ function suspensionLevel(o) {
   const towerY = o.towerY == null ? 8 : o.towerY;
   const segments = o.segments || Math.max(2, Math.ceil((x1 - x0) / 2.7));
   const solu = [];
-  const path = [];
+  let path = [];
   for (let k = 0; k <= segments; k++) {
     path.push([R(x0 + ((x1 - x0) * k) / segments), R(y0 + ((y1 - y0) * k) / segments)]);
   }
+  if (o.snapToGrid) path = snapPoints(path);
   for (let k = 0; k < path.length - 1; k++) {
     solu.push([deckMat, path[k][0], path[k][1], path[k + 1][0], path[k + 1][1]]);
   }
@@ -962,6 +979,7 @@ function test(lvl) {
 
 module.exports = {
   R,
+  snapPoints,
   dedupe,
   trussOver,
   spanLevel,

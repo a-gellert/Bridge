@@ -17,6 +17,9 @@ images {
   image: "/assets/images/ui/glow.png"
 }
 images {
+  image: "/assets/images/ui/vignette.png"
+}
+images {
   image: "/assets/images/ui/star.png"
 }
 images {

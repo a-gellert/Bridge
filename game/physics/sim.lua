@@ -317,7 +317,10 @@ local function solve_collisions(self, h)
 	for i = 1, #cols do
 		local col = cols[i]
 		col.touching = false
-		if col.wheel then col.wheel.contact = false end
+		if col.wheel then
+			col.wheel.contact = false
+			col.wheel.on_deck = false
+		end
 	end
 	for i = 1, #cols do
 		local col = cols[i]
@@ -411,7 +414,10 @@ local function solve_contact_velocities(self, h)
 		end
 		col.touching = true
 		local wheel = col.wheel
-		if wheel then wheel.contact = true end
+		if wheel then
+			wheel.contact = true
+			if seg then wheel.on_deck = true end
+		end
 
 		local rvx, rvy = vx[p] - svx, vy[p] - svy
 		-- special surfaces: remembered on the wheel, the vehicle applies them to its whole body

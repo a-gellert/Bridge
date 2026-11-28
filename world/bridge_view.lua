@@ -117,6 +117,21 @@ function M.update_build(dt, session)
 	end
 	local rec = hb and beams[hb]
 	if rec then spawn.overlay(rec.go, 1, 0.2, 0.15, 0.42 + 0.14 * math.sin(t * 12)) end
+
+	-- post-failure briefing: beams that snapped (or were closest to snapping) pulse orange
+	-- until the player edits the design. It is the "what exactly should I fix?" answer.
+	local broken = session.last_broken
+	local peak = session.last_peak_stress
+	if (broken and next(broken)) or (peak and next(peak)) then
+		local pulse = 0.42 + 0.22 * math.sin(t * 7)
+		for id, r in pairs(beams) do
+			if broken and broken[id] then
+				spawn.overlay(r.go, 1, 0.32, 0.12, pulse + 0.18)
+			elseif peak and (peak[id] or 0) >= 0.72 then
+				spawn.overlay(r.go, 1, 0.62, 0.18, 0.16 + 0.10 * math.sin(t * 5 + id))
+			end
+		end
+	end
 end
 
 function M.clear_build_helpers()

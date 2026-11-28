@@ -24,7 +24,15 @@ function M.new(level, geo)
 	self.geo = geo or terrain.build(level)
 	self.budget = level.budget
 	self.allowed = {}
-	for _, id in ipairs(level.materials) do self.allowed[id] = true end
+	-- Level.materials are the materials the level is designed around. In the campaign the
+	-- toolbox is cumulative: everything unlocked earlier stays available (rope must not
+	-- vanish after level 4 once the player has learned it).
+	for _, id in ipairs(level.materials or {}) do
+		if materials.get(id) then self.allowed[id] = true end
+	end
+	if level.index then
+		for _, m in ipairs(materials.unlocked(level.index)) do self.allowed[m.id] = true end
+	end
 	self.version = 0
 	self.undo_stack = {}
 	self:clear()

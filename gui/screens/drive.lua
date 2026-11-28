@@ -16,6 +16,9 @@ local h = {}
 local TOUCH = hash("touch")
 local TOUCH_MULTI = hash("touch_multi")
 
+local STUNT_ICON = { air = "stopwatch", flip = "flip", boost = "star", bounce = "star", portal = "portal" }
+local STUNT_COLOR = { air = "STAR", flip = "ORANGE", boost = "YELLOW", bounce = "GREEN", portal = "PURPLE" }
+
 local keys = { gas = false, brake = false }
 local touch_gas, touch_brake = false, false
 
@@ -47,6 +50,27 @@ local function apply()
 	h.last_gas, h.last_brake = g, b
 end
 
+-- Floating stunt toast: icon + points + the current combo count. It rises and fades;
+-- no new localized strings are needed, so it works in every language and on any aspect.
+local function stunt_popup(app, d)
+	if not h.root then return end
+	local root = h.root
+	local pw, ph = 176, 44
+	local y = app.vh * 0.76 - math.min(2, math.max(0, (d.combo or 1) - 1)) * 46
+	local color = ui[STUNT_COLOR[d.kind] or "YELLOW"] or ui.YELLOW
+	local node = ui.panel(root, app.vw / 2, y, pw, ph, ui.hex("#151926", 0.84), 16)
+	ui.panel(node, -pw / 2 + 4, 0, 6, ph - 10, color, 3)
+	ui.icon(node, STUNT_ICON[d.kind] or "star", -pw / 2 + 26, 0, 26, color)
+	ui.text(node, "+" .. tostring(d.points or 0), -pw / 2 + 62, 3, 24, color, gui.PIVOT_W)
+	if (d.combo or 1) > 1 then
+		ui.text(node, "x" .. d.combo, pw / 2 - 14, 2, 20, ui.WHITE, gui.PIVOT_E)
+	end
+	gui.animate(node, "position.y", y + 44, gui.EASING_OUTQUAD, 1.1)
+	gui.animate(node, "color.w", 0, gui.EASING_INQUAD, 0.9, 0.35, function()
+		if h.root == root then gui.delete_node(node) end
+	end)
+end
+
 local function make_pedal(root, x, y, size, color, glow_color, icon_name, label)
 	local node = ui.box(root, "circle", x, y, size, size, color)
 	ui.box(node, "glow", 0, 0, size * 1.18, size * 1.18, ui.hex(glow_color, 0.14))
@@ -71,6 +95,10 @@ function M.build(app, root)
 		return
 	end
 
+	-- stress vignette: a red edge pulse when the bridge is close to snapping. It is
+	-- the first screen node, so it sits above the world but under every button/pedal.
+	h.stress = ui.box(root, "vignette", vw / 2, vh / 2, vw + 4, vh + 4, ui.hex("#FF4136", 0))
+
 	ui.btn(root, ml + 120, vh - mt - 44, 220, 80, i18n.t("fix"), function()
 		session.stop_drive()
 	end, { icon = "wrench", icon_size = 40, color = ui.ORANGE, size = 30 })
@@ -93,13 +121,16 @@ function M.build(app, root)
 	h.gas_base = vmath.vector3(1, 1, 1)
 	h.brake_base = vmath.vector3(1, 1, 1)
 
-	if not app.controls_tip_shown and session.index ~= 1 and progress.stats().losses > 0 then
+	-- First-level tutorial shows the controls immediately; elsewhere only after a real fall.
+	local teach_controls = session.tutorial or (session.index ~= 1 and progress.stats().losses > 0)
+	if not app.controls_tip_shown and teach_controls then
 		app.controls_tip_shown = true
 		local tw = math.min(720, vw - ml - mr - 40)
 		local tip = ui.panel(root, vw / 2, vh - mt - 140, tw, 80, ui.hex("#151926", 0.82), 22)
 		ui.label(tip, i18n.t(app.touch and "tip_controls_touch" or "tip_controls_pc"), 0, 0, 24, ui.WHITE, tw - 40, 2)
 		gui.animate(tip, "color.w", 0, gui.EASING_INQUAD, 0.6, 5, function() gui.set_enabled(tip, false) end)
 	end
+	if session.tutorial then ui.pulse(h.gas, 1.05, 0.85) end
 	-- teach the stress colours only after the player has already fallen on a brace-hint level
 	if session.level and session.level.brace_hint
 		and progress.fail_streak(session.level.id) >= 1 and not progress.get("stress_tip_done") then
@@ -150,6 +181,18 @@ function M.on_key(app, action_id, action)
 		return true
 	end
 	return false
+end
+
+function M.update(app, dt)
+	if not h.stress or not session.run then return end
+	local stress = session.get_max_stress()
+	local k = math.max(0, math.min(1, (stress - 0.72) / 0.28))
+	local pulse = 0.7 + 0.3 * math.abs(math.sin((session.run.time or 0) * 9))
+	gui.set_color(h.stress, ui.hex("#FF4136", k * 0.28 * pulse))
+end
+
+function M.on_event(app, e)
+	if e.id == "stunt" and session.state == "drive" then stunt_popup(app, e.data) end
 end
 
 function M.clear()

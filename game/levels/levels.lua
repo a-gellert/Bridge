@@ -30,6 +30,8 @@ for ci, ch in ipairs(CHAPTERS) do
 	apply_names(ch, NAMES.chapters)
 	for li, lvl in ipairs(ch.levels) do
 		apply_names(lvl, NAMES.levels)
+		-- Absolute campaign index: the blueprint makes every material with unlock <= index
+		-- available, so the toolbox grows and never shrinks between levels.
 		lvl.index = #M.list + 1
 		lvl.chapter = ch
 		lvl.chapter_index = ci

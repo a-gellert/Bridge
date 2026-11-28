@@ -7,6 +7,7 @@ local vehicles = require("game.config.vehicles")
 local Sim = require("game.physics.sim")
 local Vehicle = require("game.physics.vehicle")
 local terrain = require("game.physics.terrain")
+local stunts = require("game.core.stunts")
 
 local sqrt, cos, sin, abs = math.sqrt, math.cos, math.sin, math.abs
 local atan2 = math.atan2 or math.atan
@@ -90,6 +91,8 @@ function M.new(level, geo, blueprint, vehicle_id)
 	self.acc = 0
 	self.max_x = sx
 	self.stuck_t = 0
+	self.slip_cd = 0
+	self.slip_dir = -1
 	self.flip_t = 0
 	self.portal_cd = 0
 	self.events = {}
@@ -103,6 +106,11 @@ function M.new(level, geo, blueprint, vehicle_id)
 	self.air_rot = 0
 	self.prev_angle = self.vehicle:angle()
 	self.trick_landed = false
+	self.trick_awarded = false
+	self.air_time = 0
+	self.air_best = 0
+	self.was_grounded = self.vehicle.grounded
+	self.stunts = stunts.new()
 	self.slowmo_t = 0
 	self.slowmo_cd = 0
 	self.max_stress = 0
@@ -133,6 +141,15 @@ local function finish(self, status, reason)
 		self.vehicle:disable()
 	end
 	emit(self, { type = status, reason = reason })
+end
+
+-- Register a stunt: combo multiplier, score, garage cash and a GUI event.
+local function award_stunt(self, kind, points, x, y)
+	local gain, mult = stunts.add(self.stunts, kind, points)
+	emit(self, {
+		type = "stunt", kind = kind, points = gain, combo = self.stunts.combo,
+		mult = mult, x = x, y = y,
+	})
 end
 
 local function check_portals(self)
@@ -166,6 +183,7 @@ local function check_portals(self)
 				self.portal_cd = tuning.PORTAL_COOLDOWN
 				self.portals = self.portals + 1
 				emit(self, { type = "portal", index = i, x = b.x, y = b.y, entry_x = a.x, entry_y = a.y })
+				award_stunt(self, "portal", 70, b.x, b.y)
 				return
 			end
 		end
@@ -206,6 +224,22 @@ local function judge(self, dt)
 			self.stuck_t = 0
 		else
 			self.stuck_t = self.stuck_t + dt
+			-- A nose can catch on a square cliff edge and hang over the water forever.
+			-- Once the vehicle is stationary over a gap with no bridge deck under its
+			-- wheels, give it a tiny slip nudge so it drops instead of freezing mid-air.
+			if self.stuck_t > tuning.WEDGE_SLIP_TIME and self.slip_cd <= 0
+				and terrain.height_at(self.geo, cx) == nil and not v:on_deck() then
+				local vx, vy = v:velocity()
+				if abs(vx) < 1.2 and abs(vy) < 2.2 then
+					local sim = self.sim
+					for _, p in ipairs(v.particles) do
+						sim.vx[p] = sim.vx[p] + self.slip_dir * tuning.WEDGE_SLIP_VX
+						sim.vy[p] = sim.vy[p] - tuning.WEDGE_SLIP_VY
+					end
+					self.slip_dir = -self.slip_dir
+					self.slip_cd = 1.0
+				end
+			end
 			if self.stuck_t > tuning.STUCK_TIME then
 				finish(self, M.FAILED, "stuck")
 				return
@@ -230,6 +264,8 @@ function M:step()
 	local dt = tuning.FIXED_DT
 	if self.portal_cd > 0 then self.portal_cd = self.portal_cd - dt end
 	if self.slowmo_cd > 0 then self.slowmo_cd = self.slowmo_cd - dt end
+	if self.slip_cd > 0 then self.slip_cd = self.slip_cd - dt end
+	stunts.tick(self.stunts, dt)
 	self.sim:step(dt)
 	self.time = self.time + dt
 	self.max_stress = self.sim.max_stress or 0
@@ -259,13 +295,34 @@ function M:step()
 	local a = v:angle()
 	if not v.grounded then
 		self.air_rot = self.air_rot + math.abs(angle_delta(self.prev_angle, a))
-		if self.air_rot >= 2 * math.pi - 0.35 then self.trick_ready = true end
+		if self.air_rot >= 2 * math.pi - 0.35 then
+			if not self.trick_ready then self.trick_awarded = false end
+			self.trick_ready = true
+		end
 	else
 		if self.trick_ready and v:up_y() > 0.25 then self.trick_landed = true end
 		self.air_rot = 0
 		self.trick_ready = false
 	end
 	self.prev_angle = a
+	-- airtime: every clean touchdown after a real flight starts a stunt
+	if not v.grounded then
+		self.air_time = self.air_time + dt
+		if self.air_time > self.air_best then self.air_best = self.air_time end
+	elseif not self.was_grounded then
+		local air = self.air_time
+		self.air_time = 0
+		if air >= 0.55 then
+			local cx, cy = v:center()
+			award_stunt(self, "air", math.floor(air * 30), cx, cy)
+		end
+	end
+	self.was_grounded = v.grounded
+	if self.trick_landed and not self.trick_awarded then
+		self.trick_awarded = true
+		local cx, cy = v:center()
+		award_stunt(self, "flip", 140, cx, cy)
+	end
 	if v.landed then
 		local l = v.landed
 		v.landed = nil
@@ -275,11 +332,17 @@ function M:step()
 		v.bounced = false
 		self.bounces = self.bounces + 1
 		emit(self, { type = "bounce" })
+		local cx, cy = v:center()
+		award_stunt(self, "bounce", 30, cx, cy)
 	end
 	if v.boosted then
 		v.boosted = false
 		self.boosts = self.boosts + 1
-		if not self.boost_sent then emit(self, { type = "boost" }) end
+		if not self.boost_sent then
+			emit(self, { type = "boost" })
+			local cx, cy = v:center()
+			award_stunt(self, "boost", 20, cx, cy)
+		end
 		self.boost_sent = true
 	else
 		self.boost_sent = false

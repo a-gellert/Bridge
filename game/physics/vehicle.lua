@@ -93,6 +93,14 @@ function M:speed()
 	return sqrt(vx * vx + vy * vy)
 end
 
+-- Any wheel resting on a drivable beam (bridge deck)? Used by the wedge rescue in run.lua.
+function M:on_deck()
+	for _, wh in ipairs(self.wheels) do
+		if wh.on_deck then return true end
+	end
+	return false
+end
+
 function M:wheel_pos(i)
 	local p = self.wheels[i].p
 	return self.sim.x[p], self.sim.y[p]

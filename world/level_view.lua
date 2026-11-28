@@ -41,6 +41,14 @@ local function add(list, id)
 	return id
 end
 
+-- Soft octagonal contact shadow on the terrain below a prop. Cheap and static:
+-- it grounds trees/rocks at the back of the scene without a shadow map.
+local function soft_shadow(gos, x, y, z, sx, sz, alpha)
+	local sh = add(gos, spawn.create("shadow", x, y + 0.035, z, 0, sx, 1, sz))
+	spawn.tint(sh, 0, 0, 0, alpha or 0.16)
+	return sh
+end
+
 local function mix(a, b, t)
 	return { a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t }
 end
@@ -75,9 +83,19 @@ local function column(gos, theme, x0, x1, top, vis_bottom)
 	local h = top - 0.3 - vis_bottom
 	local body = add(gos, spawn.create("terrain_body", (x0 + x1) * 0.5, vis_bottom + h * 0.5, ZC, 0, x1 - x0, h, DEPTH))
 	spawn.tint_rgb(body, theme.ground)
-	-- a darker topsoil band, slightly proud of the cliff face
-	local soil = add(gos, spawn.create("terrain_body", (x0 + x1) * 0.5, top - 0.66, Z_FRONT + 0.015, 0, x1 - x0, 0.72, 0.06))
-	spawn.tint(soil, theme.ground[1] * 0.72, theme.ground[2] * 0.72, theme.ground[3] * 0.72, 1)
+	-- layered cliff face: a bright grass lip, dark topsoil and three geological strata.
+	-- They are slightly proud of the body so the flat cut reads as a mined voxel wall.
+	local function band(y, bh, k, z)
+		if y - bh * 0.5 < vis_bottom then return end
+		local b = add(gos, spawn.create("terrain_body", (x0 + x1) * 0.5, y, Z_FRONT + (z or 0.015), 0, x1 - x0, bh, 0.055))
+		spawn.tint(b, theme.ground[1] * k, theme.ground[2] * k, theme.ground[3] * k, 1)
+	end
+	band(top - 0.3, 0.08, 1.1, 0.013)         -- sunlit lip under the grass
+	band(top - 0.64, 0.48, 0.82, 0.015)       -- topsoil
+	band(top - 1.32, 0.14, 0.96, 0.016)       -- pale seam
+	band(top - 2.0, 0.28, 0.74, 0.017)        -- dark stratum
+	band(top - 3.15, 0.16, 0.88, 0.018)       -- thin seam
+	band(top - 4.35, 0.5, 0.68, 0.019)        -- deep shadowed layer
 	cap_row(gos, theme, x0, x1, top, top, 0)
 end
 
@@ -109,6 +127,7 @@ local function spawn_landmark(view, gos, theme, level, geo, rand)
 	if not x then return end
 	view.landmark_x, view.landmark_y = x, h
 	local z = -5.6
+	soft_shadow(gos, x, h, z + 0.2, 3.6, 1.8, 0.16)
 	if id == "windmill" then
 		local s = 0.92
 		local tower = add(gos, spawn.create("windmill", x, h, z, 0, s, s, s))
@@ -327,13 +346,22 @@ function M.build(level)
 	local gos = {}
 	view = {
 		gos = gos, level = level, theme = theme, portals = {}, indicators = {}, waves = {}, clouds = {},
-		sway = {}, fauna = {}, ambient = {}, glints = {}, rotors = {},
+		sway = {}, fauna = {}, ambient = {}, glints = {}, rotors = {}, foam = {}, aurora = {},
 	}
 	local ex0, ex1 = extents(level)
 	local kill = level.water or level.kill_y or -12
 	local vis_bottom = kill - 45 -- deep enough for tall portrait screens
 	local area = level.area or { level.start, -4, level.finish, 6 }
 	local rand = rng(level.index * 7919 + 17)
+	-- The vehicle drives from start to finish (and coasts into the result slow-mo).
+	-- Front-layer props (z > 0) inside this corridor look like obstacles the truck
+	-- ploughs through, so keep them out even though decor has no collision.
+	-- Background decor (z < 0) is still allowed.
+	local route0 = level.start - 2
+	local route1 = level.finish + 8
+	local function on_drive_path(x)
+		return x >= route0 and x <= route1
+	end
 
 	msg.post("@render:", "clear_color", { color = vmath.vector4(theme.sky[1], theme.sky[2], theme.sky[3], 1) })
 
@@ -352,7 +380,7 @@ function M.build(level)
 	-- Celestial body (sun / moon) in the sky
 	if level.theme ~= "lab" then
 		local sun_x = (level.theme == "mountains") and (ex0 + 8) or (ex1 - 10)
-		local sun_y = (level.theme == "canyon") and (kill + 17) or 36
+		local sun_y = (level.theme == "canyon") and (kill + 17) or (level.theme == "mountains" and 28 or 32)
 		local sun_color, sun_scale
 		if level.theme == "canyon" then
 			sun_color = { 1.0, 0.88, 0.65 }
@@ -372,6 +400,33 @@ function M.build(level)
 		local core = add(gos, spawn.create("portal_glow", sun_x, sun_y, -147, 0, sun_scale * 0.9, sun_scale * 0.9, 1))
 		spawn.tint(core, 1, 1, 1, 0.92)
 		spawn.overlay(core, 1.2, 1.18, 1.1, 1)
+		-- soft god-rays: thin unlit bands radiating from the disc. They live in the sky
+		-- pass, so they never cover the terrain or the truck.
+		for i = 1, 8 do
+			local a = (i - 1) / 8 * math.pi * 2 + 0.18
+			local len = sun_scale * (1.7 + (i % 3) * 0.42)
+			local ray = add(gos, spawn.create("sky_band",
+				sun_x + math.cos(a) * len * 0.42, sun_y + math.sin(a) * len * 0.42,
+				-146.5, a, len, sun_scale * (0.045 + (i % 2) * 0.02), 1))
+			spawn.tint(ray, sun_color[1], sun_color[2], sun_color[3], 0.04 + (i % 3) * 0.008)
+		end
+	end
+
+	-- Northern lights for the frozen chapter: slow ribbons behind the mountains.
+	if level.theme == "mountains" then
+		local cols = { { 0.35, 1.0, 0.78 }, { 0.38, 0.78, 1.0 }, { 0.72, 0.55, 1.0 } }
+		for i = 1, 4 do
+			local c = cols[1 + (i - 1) % #cols]
+			local ax = ex0 + (ex1 - ex0) * (0.16 + i * 0.17)
+			local ay = 25 + i * 5.0
+			local go = add(gos, spawn.create("sky_band", ax, ay, -149, -0.2 + i * 0.055, 54 + i * 10, 3.8 + i * 0.45, 1))
+			spawn.tint(go, c[1], c[2], c[3], 0.11)
+			view.aurora[#view.aurora + 1] = {
+				go = go, x = ax, y = ay, z = -149, angle = -0.2 + i * 0.055,
+				sx = 54 + i * 10, sy = 3.8 + i * 0.45, r = c[1], g = c[2], b = c[3],
+				alpha = 0.11, phase = i * 1.7,
+			}
+		end
 	end
 
 	-- ---------------------------------------------------------- background mountains (aerial perspective)
@@ -510,12 +565,41 @@ function M.build(level)
 		local lite = mix(theme.water, { 1, 1, 1 }, 0.36)
 		local surface = add(gos, spawn.create("water_top", (ex0 + ex1) * 0.5, level.water + 0.02, -8, 0, w, 1, 12))
 		spawn.tint(surface, lite[1], lite[2], lite[3], 0.55)
+		-- depth gradient: lighter shallow water near the surface, darker layers below
+		local layers = {
+			{ y = level.water - 0.45, h = 0.9, k = 1.16, a = 0.30 },
+			{ y = level.water - 2.7, h = 3.6, k = 0.84, a = 0.23 },
+			{ y = level.water - 7.2, h = 5.6, k = 0.56, a = 0.18 },
+		}
+		for i, l in ipairs(layers) do
+			local strip = add(gos, spawn.create("water", (ex0 + ex1) * 0.5, l.y, -1.97 - i * 0.005, 0, w, l.h, 0.06))
+			spawn.tint(strip, theme.water[1] * l.k, theme.water[2] * l.k, theme.water[3] * l.k, l.a)
+		end
 		for i = 0, 3 do
 			local z = -2.4 - i * 2.7
 			local sx = w * (0.7 + i * 0.08)
 			local go = add(gos, spawn.create("water_wave", (ex0 + ex1) * 0.5 - i * 2.5, level.water + 0.07, z, 0, sx, 1, 1))
 			spawn.tint(go, 1, 1, 1, 0.3 - i * 0.045)
 			view.waves[#view.waves + 1] = { go = go, x = (ex0 + ex1) * 0.5 - i * 2.5, y = level.water + 0.07, z = z, sx = sx, phase = i * 1.7 }
+		end
+		-- shoreline foam: find land/water transitions and add a few bobbing white crests
+		local prev_wet
+		for sx = ex0, ex1, 0.5 do
+			local wet = terrain.height_at(bg_geo, sx) == nil
+			if prev_wet ~= nil and wet ~= prev_wet then
+				local dir = wet and 1 or -1
+				for k = 1, 2 do
+					local fx = sx + dir * (0.22 + k * 0.22)
+					local z = -2.28 - k * 0.46
+					local go = add(gos, spawn.create("water_wave", fx, level.water + 0.085, z, 0, 0.8 + k * 0.25, 1, 1))
+					spawn.tint(go, 1, 1, 1, 0.26 - k * 0.03)
+					view.foam[#view.foam + 1] = {
+						go = go, x = fx, y = level.water + 0.085, z = z,
+						sx = 0.8 + k * 0.25, alpha = 0.26 - k * 0.03, phase = sx + k * 1.3,
+					}
+				end
+			end
+			prev_wet = wet
 		end
 	end
 
@@ -606,6 +690,7 @@ function M.build(level)
 					local s = 0.75 + rand() * 0.7
 					local dx = x + rand() * 1.5
 					local d = add(gos, spawn.create(id, dx, h, z, 0, s, s, s))
+					soft_shadow(gos, dx, h, z, s * 1.25, s * 0.48, 0.14)
 					if id == "rock_small" or id == "rock_big" or id == "rock_arch" or id == "ruin_arch" then
 						spawn.tint_rgb(d, theme.rock)
 					elseif id == "crystal_cluster" then
@@ -645,11 +730,40 @@ function M.build(level)
 			end
 		end
 	end
+	-- foreground grass tufts on the banks, outside the driving corridor: they frame the
+	-- action without ever covering the truck
+	for x = ex0, ex1, 3.1 do
+		local clear_of_landmark = not view.landmark_x or math.abs(x - view.landmark_x) > 2.2
+		local dx = x + rand() * 0.9
+		if clear_of_landmark and outside_area(x, 1.6) and not on_drive_path(x)
+			and not on_drive_path(dx) and rand() < 0.42 then
+			local h = terrain.height_at(geo, x)
+			if h and h > kill then
+				local id
+				if theme.flowers and #theme.flowers > 0 and rand() < 0.72 then
+					id = theme.flowers[1 + math.floor(rand() * #theme.flowers)]
+				else
+					id = "bush"
+				end
+				local s = id == "bush" and (0.35 + rand() * 0.22) or (0.75 + rand() * 0.35)
+				local z = 1.05 + rand() * 0.45
+				local go = add(gos, spawn.create(id, dx, h, z, 0, s, s, s))
+				soft_shadow(gos, dx, h, z, s * 1.2, s * 0.4, 0.1)
+				local sway = SWAY[id]
+				if sway then
+					view.sway[#view.sway + 1] = {
+						id = id, go = go, x = dx, y = h, z = z, s = s,
+						phase = rand() * math.pi * 2, amp = sway.amp, dx = sway.dx,
+					}
+				end
+			end
+		end
+	end
 	-- rocks breaking the cliff line
 	for i = 1, 7 do
 		local x = ex0 + (ex1 - ex0) * rand()
 		local clear_of_landmark = not view.landmark_x or math.abs(x - view.landmark_x) > 2.8
-		if clear_of_landmark and outside_area(x, 1.2) then
+		if clear_of_landmark and outside_area(x, 1.2) and not on_drive_path(x) then
 			local h = terrain.height_at(geo, x)
 			if h and h > kill then
 				local big = rand() < 0.3
@@ -657,17 +771,17 @@ function M.build(level)
 				local id = big and "rock_big" or "rock_small"
 				local d = add(gos, spawn.create(id, x, h - 0.15, 0.65, rand() * math.pi * 2, s, s, s))
 				spawn.tint_rgb(d, theme.rock)
+				soft_shadow(gos, x, h, 0.65, s * 1.4, s * 0.55, 0.14)
 			end
 		end
 	end
-	-- a little human touch near the start/finish
-	for i, x in ipairs({ level.start - 5, level.finish + 3 }) do
-		local h = terrain.height_at(geo, x)
-		if h and h > kill and rand() < 0.8 then
-			local id = i == 1 and "sign" or (rand() < 0.5 and "crate" or "fence")
-			local s = 0.9 + rand() * 0.2
-			add(gos, spawn.create(id, x, h, 0.6, 0, s, s, s))
-		end
+	-- a little human touch behind the start; the finish run-out stays clear
+	local sign_x = level.start - 5
+	local sign_h = terrain.height_at(geo, sign_x)
+	if sign_h and sign_h > kill and not on_drive_path(sign_x) and rand() < 0.8 then
+		local s = 0.9 + rand() * 0.2
+		add(gos, spawn.create("sign", sign_x, sign_h, 0.6, 0, s, s, s))
+		soft_shadow(gos, sign_x, sign_h, 0.6, s * 1.2, s * 0.4, 0.12)
 	end
 
 	-- ---------------------------------------------------------- life
@@ -760,6 +874,18 @@ function M.update(dt)
 		local y = w.y + math.sin(t_acc * 1.15 + w.phase) * 0.05
 		local x = w.x + math.sin(t_acc * 0.35 + w.phase) * 1.2
 		spawn.set("water_wave", w.go, x, y, w.z, 0, w.sx, 1, 1)
+	end
+	for _, f in ipairs(view.foam or {}) do
+		local bob = math.sin(t_acc * 2.1 + f.phase) * 0.06
+		local k = 0.88 + 0.18 * math.sin(t_acc * 1.4 + f.phase)
+		spawn.set("water_wave", f.go, f.x + math.sin(t_acc * 0.8 + f.phase) * 0.12, f.y + bob, f.z, 0, f.sx * k, 1, 1)
+		spawn.tint(f.go, 1, 1, 1, f.alpha * (0.72 + 0.28 * math.sin(t_acc * 1.8 + f.phase)))
+	end
+	for _, a in ipairs(view.aurora or {}) do
+		local k = 0.68 + 0.32 * math.sin(t_acc * 0.38 + a.phase)
+		spawn.tint(a.go, a.r, a.g, a.b, a.alpha * k)
+		spawn.set("sky_band", a.go, a.x + math.sin(t_acc * 0.12 + a.phase) * 2.4,
+			a.y + math.sin(t_acc * 0.3 + a.phase) * 0.7, a.z, a.angle, a.sx, a.sy, 1)
 	end
 	for _, c in ipairs(view.clouds) do
 		c.x = c.x + c.speed * dt

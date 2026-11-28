@@ -144,6 +144,7 @@ end
 
 function M.build(app, root)
 	local vw, vh = app.vw, app.vh
+	if progress.ftue("garage_opened") then poki.measure("ftue", "garage_opened", "1") end
 	local ml, mr, mt, mb = layout.margins(vw, vh, 16)
 	local top_w = vw - ml - mr
 	local top_h = 84

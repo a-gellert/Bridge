@@ -30,11 +30,12 @@ void main()
     vec3 sun_col = vec3(1.0, 0.96, 0.88);
     vec3 bounce_col = vec3(0.85, 0.78, 0.68);
     float hemi = 0.5 + 0.5 * n.y;
-    float amb = 0.34 + 0.2 * hemi;
-    float bounce = 0.08 * max(-n.y, 0.0);
-    float rim = pow(1.0 - max(n.z, 0.0), 3.0) * 0.05;
+    float amb = 0.31 + 0.17 * hemi;
+    float top = max(n.y, 0.0);
+    float bounce = 0.09 * max(-n.y, 0.0);
+    float rim = pow(1.0 - max(n.z, 0.0), 3.0) * 0.07;
 
-    vec3 light = sky_col * (amb + rim) + sun_col * (ndl * 0.55) + bounce_col * bounce;
+    vec3 light = sky_col * (amb + rim) + sun_col * (ndl * 0.62 + top * 0.04) + bounce_col * bounce;
     vec3 lit = base.rgb * tint.rgb * light;
     float mix_amount = overlay.w;
     lit = mix(lit, overlay.rgb * (0.55 + ndl * 0.55), mix_amount);
