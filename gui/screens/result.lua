@@ -1,11 +1,13 @@
 -- Result popup over the drive view.
--- Win: stars for the level, seamless auto-advance if 3 stars, biome switch prompt on level 8.
+-- Win: stars for the level, seamless auto-advance if 3 stars, biome switch prompt at the end
+-- of every block of levels (levels.BLOCK).
 -- Fail: the session holds a short collapse beat; the cheap retry path returns to build instantly.
 local ui = require("gui.ui")
 local i18n = require("game.core.i18n")
 local session = require("game.core.session")
 local vehicles = require("game.config.vehicles")
 local levels = require("game.levels.levels")
+local progress = require("game.core.progress")
 local audio = require("platform.audio")
 local ads = require("platform.ads")
 local layout = require("gui.layout")
@@ -78,13 +80,13 @@ function M.build(app, root, res)
 
 	local ch_index = res.chapter_index or (session.level and session.level.chapter_index) or 1
 	local lvl_num = res.level_number or (session.level and session.level.number) or 1
-	local is_biome_8 = res.is_biome_milestone or (lvl_num == 8)
+	local target_lvl = res.is_biome_milestone and res.biome_target and levels.get(res.biome_target)
 
-	if is_biome_8 then
-		-- Level 8 in biome passed: offer switching to a new setting
-		local next_ci = (ch_index % #levels.chapters) + 1
-		local target_ch = levels.chapters[next_ci]
-		local target_name = target_ch and i18n.pick(target_ch.name) or ""
+	if target_lvl then
+		-- Last level of a block passed: offer the next biome on the player path
+		-- (the first unsolved level of another chapter, see progress.next_biome_level).
+		local target_ch = target_lvl.chapter
+		local target_name = i18n.pick(target_ch.name)
 
 		local pw = math.min(app.portrait and 660 or 700, vw - 40)
 		local panel, ph = card_panel(app, root, pw, 560)
@@ -109,23 +111,32 @@ function M.build(app, root, res)
 
 		-- Button 1: Go to new setting
 		local btn1_lbl = i18n.f("biome_offer_go", target_name)
+		local target_index = res.biome_target
 		local btn1 = ui.btn(panel, 0, top - 310, pw - 80, 84, btn1_lbl, function()
-			app.start_level(target_ch.first)
+			app.start_level(target_index)
 		end, { icon = "next", icon_size = 40, color = ui.GREEN, size = 28 })
 		ui.pulse(btn1, 1.05, 0.6)
 
-		-- Button 2: Continue in current setting (Level 9)
-		local btn2_lbl = i18n.f("biome_offer_stay", string.format("%d-%d", ch_index, lvl_num + 1))
-		local show_portal = ch_index < 3
-		local half = (pw - 90) / 2
-		ui.btn(panel, show_portal and -half / 2 - 5 or 0, top - 410, show_portal and half or pw - 80, 76, btn2_lbl, function()
-			app.next_level()
-		end, { color = ui.PANEL_LT, size = 24 })
+		-- Button 2: continue in the current setting (only inside this chapter)
+		local nxt = levels.get((res.level_index or 0) + 1)
+		local show_stay = res.has_next and res.next_unlocked and nxt and nxt.chapter_index == ch_index
 		-- Early wow moment: the Quantum Lab is always open, so a curious player can taste
-		-- portals right after the first biome milestone instead of waiting for level 81.
+		-- portals before the path gets there. Only while the Lab is untouched and is not
+		-- already the main target.
+		local lab = levels.chapters[3]
+		local show_portal = lab and ch_index ~= 3 and target_ch.index ~= 3
+			and progress.stars(levels.list[lab.first].id) == 0
+		local half = (pw - 90) / 2
+		local both = show_stay and show_portal
+		if show_stay then
+			local btn2_lbl = i18n.f("biome_offer_stay", string.format("%d-%d", ch_index, lvl_num + 1))
+			ui.btn(panel, both and -half / 2 - 5 or 0, top - 410, both and half or pw - 80, 76, btn2_lbl, function()
+				app.next_level()
+			end, { color = ui.PANEL_LT, size = 24 })
+		end
 		if show_portal then
-			ui.pulse(ui.btn(panel, half / 2 + 5, top - 410, half, 76, i18n.t("biome_offer_portal"), function()
-				app.start_level(levels.chapters[3] and levels.chapters[3].first or 81)
+			ui.pulse(ui.btn(panel, both and half / 2 + 5 or 0, top - 410, both and half or pw - 80, 76, i18n.t("biome_offer_portal"), function()
+				app.start_level(lab.first)
 			end, { icon = "portal", icon_size = 32, color = ui.PURPLE, size = 22 }), 1.04, 0.6)
 		end
 
@@ -231,7 +242,13 @@ function M.on_key(app, action_id, action, res)
 	if not action.pressed then return false end
 	local name = app.key_names[action_id]
 	if name == "go" then
-		if res.won and res.has_next and res.next_unlocked then app.next_level() else session.stop_drive() end
+		if res.won and res.is_biome_milestone and res.biome_target then
+			app.start_level(res.biome_target)
+		elseif res.won and res.has_next and res.next_unlocked then
+			app.next_level()
+		else
+			session.stop_drive()
+		end
 		return true
 	elseif name == "reset" or name == "back" then
 		session.stop_drive()

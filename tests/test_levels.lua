@@ -23,14 +23,37 @@ end
 assert(levels.COUNT == 160, "expected 160 levels, got " .. levels.COUNT)
 assert(max_portals >= 3, "no level can earn Quantum Leap (3 portals in one run)")
 
--- First ten levels are the FTUE corridor: human-buildable 1 m grid, roomy budget, low stress.
+-- Every reference bridge sits on the 1 m build grid: the budget is fitted to a bridge a player
+-- can actually draw (tools/gen/level_kit.js grid mode).
+for _, r in ipairs(reps) do
+	for _, e in ipairs(check.grid_errors(r.lvl)) do failures[#failures + 1] = r.lvl.id .. ": " .. e end
+end
+
+-- Pacing by round. The player path rotates the biomes in blocks of levels.BLOCK, so round r
+-- (levels 8(r-1)+1..8r of every chapter) is played together: budget slack and bridge size
+-- grow with the round, never with the chapter. Round 1 is every chapter's opening.
+local MAX_RATIO = { 0.78, 0.79, 0.81, 0.83, 0.86 }
+local MAX_BEAMS = { 22, 24, 34, 34, 60 }
+for _, r in ipairs(reps) do
+	local round = math.min(#MAX_RATIO, math.ceil(r.lvl.number / levels.BLOCK))
+	local ratio = r.rep.cost / r.lvl.budget
+	if ratio > MAX_RATIO[round] then
+		failures[#failures + 1] = string.format("%s: round %d solution eats %.0f%% of the budget (max %.0f%%)",
+			r.lvl.id, round, ratio * 100, MAX_RATIO[round] * 100)
+	end
+	if #r.lvl.solution > MAX_BEAMS[round] then
+		failures[#failures + 1] = string.format("%s: round %d reference has %d beams (max %d)",
+			r.lvl.id, round, #r.lvl.solution, MAX_BEAMS[round])
+	end
+end
+
+-- First ten levels are the FTUE corridor: roomy budget, low stress.
 -- They are the levels 90% of new players see before deciding to stay or leave.
 for i = 1, 10 do
 	local lvl, rep = reps[i].lvl, reps[i].rep
 	if lvl.id ~= string.format("1-%d", i) then
 		failures[#failures + 1] = "FTUE order: expected 1-" .. i .. ", got " .. lvl.id
 	end
-	for _, e in ipairs(check.grid_errors(lvl)) do failures[#failures + 1] = lvl.id .. ": " .. e end
 	local ratio = rep.cost / lvl.budget
 	if ratio > 0.78 then
 		failures[#failures + 1] = string.format("%s: solution eats %.0f%% of the budget (target <= 78%%)", lvl.id, ratio * 100)

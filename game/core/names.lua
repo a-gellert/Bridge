@@ -123,6 +123,8 @@ return {
 		["Spike Crown"] = { de = "Stachelkrone", fr = "Couronne de pics", es = "Corona de pinchos", it = "Corona di punte", pt = "Coroa de espinhos", pl = "Korona kolców", tr = "Diken Tacı", nl = "Spiessenkroon" },
 		["Reactors"] = { de = "Reaktoren", fr = "Réacteurs", es = "Reactores", it = "Reattori", pt = "Reatores", pl = "Reaktory", tr = "Reaktörler", nl = "Reactoren" },
 		["Twin Gates"] = { de = "Zwillingsportale", fr = "Portes jumelles", es = "Puertas gemelas", it = "Cancelli gemelli", pt = "Portões gêmeos", pl = "Bliźniacze bramy", tr = "İkiz Kapılar", nl = "Tweelingpoorten" },
+		["Mirror Gate"] = { de = "Spiegeltor", fr = "Porte miroir", es = "Puerta espejo", it = "Porta specchio", pt = "Portão espelho", pl = "Lustrzana brama", tr = "Ayna Kapısı", nl = "Spiegelpoort" },
+		["Photon Gate"] = { de = "Photonentor", fr = "Porte photonique", es = "Puerta fotónica", it = "Porta fotonica", pt = "Portão fotônico", pl = "Fotonowa brama", tr = "Foton Kapısı", nl = "Fotonenpoort" },
 		["Bounce Reactor"] = { de = "Trampolinreaktor", fr = "Réacteur trampoline", es = "Reactor trampolín", it = "Reattore trampolino", pt = "Reator trampolim", pl = "Reaktor z trampoliną", tr = "Trambolin Reaktörü", nl = "Trampolinereactor" },
 		["Singularity Arch"] = { de = "Singularitätsbogen", fr = "Arche de singularité", es = "Arco de singularidad", it = "Arco di singolarità", pt = "Arco de singularidade", pl = "Łuk osobliwości", tr = "Tekillik Kemeri", nl = "Singulariteitsboog" },
 		["Aperture Overpass"] = { de = "Apertur-Überführung", fr = "Viaduc d'ouverture", es = "Paso elevado de apertura", it = "Cavalcavia dell'apertura", pt = "Viaduto da abertura", pl = "Wiadukt apertury", tr = "Açıklık Üst Geçidi", nl = "Apertuurviaduct" },

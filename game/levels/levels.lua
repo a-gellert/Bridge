@@ -47,6 +47,32 @@ end
 M.COUNT = #M.list
 M.MAX_STARS = M.COUNT * 3
 
+-- Player path: blocks of BLOCK levels rotate through the biomes
+-- (1-1..1-8, 2-1..2-8, 3-1..3-8, 4-1..4-8, 1-9..1-16, ...), so a new setting and new
+-- mechanics show up every few minutes instead of after 40 levels of one chapter.
+-- `path` holds campaign indices in that order, `path_pos[index]` is the reverse lookup.
+M.BLOCK = 8
+M.path = {}
+M.path_pos = {}
+local longest = 0
+for _, ch in ipairs(M.chapters) do longest = math.max(longest, ch.last - ch.first + 1) end
+for b = 0, math.ceil(longest / M.BLOCK) - 1 do
+	for _, ch in ipairs(M.chapters) do
+		for n = b * M.BLOCK + 1, (b + 1) * M.BLOCK do
+			local index = ch.first + n - 1
+			if index <= ch.last then
+				M.path[#M.path + 1] = index
+				M.path_pos[index] = #M.path
+			end
+		end
+	end
+end
+
+-- Last level of a block: the result card offers the next biome here.
+function M.is_block_end(lvl)
+	return lvl ~= nil and lvl.number % M.BLOCK == 0
+end
+
 function M.get(index)
 	return M.list[index]
 end

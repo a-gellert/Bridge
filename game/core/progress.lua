@@ -126,13 +126,28 @@ function M.level_unlocked(index)
 	return M.stars(levels.list[index - 1].id) > 0
 end
 
--- First unlocked level without stars, else the last level played.
+-- First unlocked level without stars along the player path (levels.path), else the last
+-- level played.
 function M.next_level()
-	for i = 1, levels.COUNT do
+	for _, i in ipairs(levels.path) do
 		if M.level_unlocked(i) and M.stars(levels.list[i].id) == 0 then return i end
 	end
 	local d = ensure()
 	return math.max(1, math.min(levels.COUNT, d.last_level or 1))
+end
+
+-- Where the biome card sends the player after the last level of a block: the first unlocked
+-- unsolved level along the path in another chapter. nil when every other chapter is done.
+function M.next_biome_level(index)
+	local lvl = levels.list[index]
+	if not lvl then return nil end
+	for _, i in ipairs(levels.path) do
+		if levels.list[i].chapter_index ~= lvl.chapter_index
+			and M.level_unlocked(i) and M.stars(levels.list[i].id) == 0 then
+			return i
+		end
+	end
+	return nil
 end
 
 -- Called when a vehicle reaches point B. Returns a summary for the result screen.

@@ -455,6 +455,29 @@ frames(5)
 assert(session.level.chapter_index == 2, "transitioned to Red Canyon biome")
 assert(session.level.id == "2-1", "first level of new setting loaded")
 
+-- 4. Every block end offers the next biome on the player path: after 1-16 the card targets the
+-- first unsolved level of another chapter (2-1 here), next to "stay" (1-17) and the Lab shortcut.
+local l16 = levels.by_id["1-16"]
+session.load_level(l16.index)
+session.clear()
+for _, b in ipairs(l16.solution) do
+	session.select_material(b[1])
+	session.try_build(b[2], b[3], b[4], b[5])
+end
+session.start_drive("truck")
+for _ = 1, 60 * 15 do
+	frame()
+	if session.state == "result" then break end
+end
+assert(session.state == "result" and session.result.won, "1-16 completed")
+frames(10)
+assert(session.result.biome_target == levels.by_id["2-1"].index, "block end targets the next biome")
+assert(find_text(i18n.f("biome_offer_stay", "1-17")), "stay-in-the-valley option")
+assert(find_text(i18n.t("biome_offer_portal")), "Quantum Lab shortcut while the Lab is untouched")
+click_text(canyon_text)
+frames(5)
+assert(session.level.id == "2-1", "block end leads to the next biome")
+
 -- HUD survives desktop, tablet, square and tall phone canvases
 for _, s in ipairs({ { 1920, 1080 }, { 1024, 768 }, { 900, 900 }, { 1200, 1200 }, { 1170, 2532 }, { 390, 844 } }) do
 	mock.window_w, mock.window_h = s[1], s[2]

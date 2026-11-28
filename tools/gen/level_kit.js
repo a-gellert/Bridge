@@ -28,6 +28,42 @@ function snapPoints(points) {
   return out.length >= 2 ? out : points.map((p) => [R(p[0]), R(p[1])]);
 }
 
+// ---------------------------------------------------------------------------- grid mode
+// `o.grid`: every joint of the reference bridge sits on the 1 m build grid, so the bridge the
+// budget is fitted to is one a player can actually draw. Limits follow the game rule
+// (max_len * LENGTH_SLACK in game/config/tuning.lua), not the 0.99 safety factor above.
+const LENGTH_SLACK = 1.055;
+const gridMax = (mat) => materials[mat].max * LENGTH_SLACK - 1e-3;
+const gridH = (h) => Math.max(1, Math.round(h));
+
+// Fewest segments whose rounded joints keep every deck beam (and, with a truss material, every
+// chord, vertical and diagonal of a truss of height h) within the material limits.
+// make(n) returns the raw n-segment polyline.
+function gridPath(make, deckMat, trussMat, h) {
+  const dMax = gridMax(deckMat);
+  const tMax = trussMat ? gridMax(trussMat) : Infinity;
+  for (let n = 1; n <= 80; n++) {
+    const pts = snapPoints(make(n));
+    if (pts.length < 2) continue;
+    let ok = !trussMat || h <= tMax;
+    for (let k = 0; ok && k < pts.length - 1; k++) {
+      const dx = Math.abs(pts[k + 1][0] - pts[k][0]);
+      const dy = Math.abs(pts[k + 1][1] - pts[k][1]);
+      const len = Math.hypot(dx, dy);
+      if (len > dMax) ok = false;
+      if (trussMat && (len > tMax || Math.hypot(dx, h + dy) > tMax)) ok = false;
+    }
+    if (ok) return pts;
+  }
+  throw new Error(`no grid path for ${deckMat}/${trussMat} h=${h}`);
+}
+
+const linePath = (x0, y0, x1, y1) => (n) => {
+  const pts = [];
+  for (let k = 0; k <= n; k++) pts.push([x0 + ((x1 - x0) * k) / n, y0 + ((y1 - y0) * k) / n]);
+  return pts;
+};
+
 function dedupe(list) {
   const seen = new Set();
   const out = [];
@@ -116,33 +152,37 @@ function spanLevel(o) {
   const y1 = o.y1 == null ? 0 : o.y1;
   const deckMat = o.deckMat || "road";
   const trussMat = o.trussMat || "wood";
-  const h0 = o.height == null ? 2.4 : o.height;
+  const h0 = o.height == null ? 2.4 : o.grid ? gridH(o.height) : o.height;
   const maxDeck = materials[deckMat].max * 0.99;
   const maxTruss = materials[trussMat].max * 0.99;
-  let segments = o.segments;
-  if (!segments) {
-    for (segments = 2; segments < 40; segments++) {
-      const dx = (x1 - x0) / segments;
-      const dy = (y1 - y0) / segments;
-      if (Math.hypot(dx, dy) <= maxDeck && Math.hypot(Math.abs(dx), h0 + Math.abs(dy)) <= maxTruss) break;
-    }
-  }
   let path = [];
-  for (let k = 0; k <= segments; k++) {
-    path.push([x0 + ((x1 - x0) * k) / segments, y0 + ((y1 - y0) * k) / segments]);
+  if (o.grid) {
+    path = gridPath(linePath(x0, y0, x1, y1), deckMat, trussMat, h0);
+  } else {
+    let segments = o.segments;
+    if (!segments) {
+      for (segments = 2; segments < 40; segments++) {
+        const dx = (x1 - x0) / segments;
+        const dy = (y1 - y0) / segments;
+        if (Math.hypot(dx, dy) <= maxDeck && Math.hypot(Math.abs(dx), h0 + Math.abs(dy)) <= maxTruss) break;
+      }
+    }
+    for (let k = 0; k <= segments; k++) {
+      path.push([x0 + ((x1 - x0) * k) / segments, y0 + ((y1 - y0) * k) / segments]);
+    }
+    if (o.snapToGrid) path = snapPoints(path);
   }
-  if (o.snapToGrid) path = snapPoints(path);
   const t = trussOver(path, {
     deckMat,
     trussMat,
-    height: o.height,
+    height: h0,
     mode: o.mode || "above",
     verticals: o.verticals,
     diagonals: o.diagonals,
   });
 
   const blocks = [...(o.blocks || [])];
-  const h = o.height == null ? 2.4 : o.height;
+  const h = h0;
   if ((o.mode || "above") !== "below" && o.topBlocks !== false) {
     blocks.push([x0 - 5, y0 + h, x0, y0 + h + 2]);
     blocks.push([x1, y1 + h, x1 + 5, y1 + h + 2]);
@@ -242,8 +282,9 @@ function archLevel(o) {
   const rise = o.rise == null ? 1.5 : o.rise;
   const deckMat = o.deckMat || "road";
   const trussMat = o.trussMat || "wood";
-  const h = o.height == null ? 2.4 : o.height;
-  const pts = fitPath((n) => arcPath(x0, x1, y0, y1, rise, n).map((p) => [R(p[0]), R(p[1])]), deckMat, trussMat, h);
+  const h = o.height == null ? 2.4 : o.grid ? gridH(o.height) : o.height;
+  const make = (n) => arcPath(x0, x1, y0, y1, rise, n).map((p) => [R(p[0]), R(p[1])]);
+  const pts = o.grid ? gridPath(make, deckMat, trussMat, h) : fitPath(make, deckMat, trussMat, h);
   return pathLevel({ ...o, points: pts, deckMat, trussMat, height: h, ground: o.ground || [[-40, x0, y0], [x1, 90, y1]] });
 }
 
@@ -254,7 +295,7 @@ function humpLevel(o) {
   const rise = o.rise == null ? 1.5 : o.rise;
   const deckMat = o.deckMat || "road";
   const trussMat = o.trussMat || "wood";
-  const h = o.height == null ? 2.4 : o.height;
+  const h = o.height == null ? 2.4 : o.grid ? gridH(o.height) : o.height;
   const make = (n) => {
     const pts = [];
     for (let k = 0; k <= n; k++) {
@@ -264,13 +305,13 @@ function humpLevel(o) {
     }
     return pts;
   };
-  const pts = fitPath(make, deckMat, trussMat, h);
+  const pts = o.grid ? gridPath(make, deckMat, trussMat, h) : fitPath(make, deckMat, trussMat, h);
   return pathLevel({ ...o, points: pts, deckMat, trussMat, height: h, ground: o.ground || [[-40, x0, y0], [x1, 90, y1]] });
 }
 
 // Low rock ceiling: a truss that has to fit under a slab.
 function caveLevel(o) {
-  const h = o.height == null ? 2.2 : o.height;
+  const h = o.height == null ? 2.2 : o.grid ? gridH(o.height) : o.height;
   return spanLevel({
     ...o,
     height: h,
@@ -290,8 +331,12 @@ function kingpostLevel(o) {
   const stayMax = materials[stayMat].max * 0.97;
   const n = o.segments || Math.max(2, Math.ceil(Math.abs(x1 - x0) / (deckMax * 0.98)));
   let path = [];
-  for (let k = 0; k <= n; k++) path.push([R(x0 + ((x1 - x0) * k) / n), R(y0 + ((y1 - y0) * k) / n)]);
-  if (o.snapToGrid) path = snapPoints(path);
+  if (o.grid) {
+    path = gridPath(linePath(x0, y0, x1, y1), deckMat, null, 0);
+  } else {
+    for (let k = 0; k <= n; k++) path.push([R(x0 + ((x1 - x0) * k) / n), R(y0 + ((y1 - y0) * k) / n)]);
+    if (o.snapToGrid) path = snapPoints(path);
+  }
   const sol = [];
   for (let k = 0; k < path.length - 1; k++) sol.push([deckMat, path[k][0], path[k][1], path[k + 1][0], path[k + 1][1]]);
   const apexCount = o.apexes || 1;
@@ -299,8 +344,9 @@ function kingpostLevel(o) {
   const posts = [];
   for (let i = 0; i < apexCount; i++) {
     const t = apexCount === 1 ? 0.5 : (i + 1) / (apexCount + 1);
-    const ax = R(x0 + (x1 - x0) * t);
-    const ay = R(y0 + (y1 - y0) * t + (o.rise == null ? 2.4 : o.rise));
+    let ax = R(x0 + (x1 - x0) * t);
+    let ay = R(y0 + (y1 - y0) * t + (o.rise == null ? 2.4 : o.rise));
+    if (o.grid) { ax = Math.round(ax); ay = Math.round(ay); }
     apexes.push([ax, ay]);
   }
   // The middle deck joint under every king post.
@@ -355,7 +401,7 @@ function islandsLevel(o) {
   const sol = [];
   const anchors = [];
   const blocks = [...(o.blocks || [])];
-  const h = o.height == null ? 2.2 : o.height;
+  const h = o.height == null ? 2.2 : o.grid ? gridH(o.height) : o.height;
   const deckMat = o.deckMat || "road";
   const trussMat = o.trussMat || "wood";
   const maxDeck = materials[deckMat].max * 0.99;
@@ -364,17 +410,21 @@ function islandsLevel(o) {
     const y = o.islandY == null ? 0 : o.islandY;
     const y0 = gi === 0 ? (o.startY == null ? 0 : o.startY) : y;
     const y1 = gi === o.gaps.length - 1 ? (o.endY == null ? 0 : o.endY) : y;
-    const n = Math.max(2, Math.ceil(Math.abs(g.x1 - g.x0) / bay));
     let path = [];
-    for (let k = 0; k <= n; k++) path.push([R(g.x0 + ((g.x1 - g.x0) * k) / n), R(y0 + ((y1 - y0) * k) / n)]);
-    if (o.snapToGrid) path = snapPoints(path);
+    if (o.grid) {
+      path = gridPath(linePath(g.x0, y0, g.x1, y1), deckMat, trussMat, h);
+    } else {
+      const n = Math.max(2, Math.ceil(Math.abs(g.x1 - g.x0) / bay));
+      for (let k = 0; k <= n; k++) path.push([R(g.x0 + ((g.x1 - g.x0) * k) / n), R(y0 + ((y1 - y0) * k) / n)]);
+      if (o.snapToGrid) path = snapPoints(path);
+    }
     const t = trussOver(path, {
       deckMat,
       trussMat,
       height: h,
       mode: o.mode || "below",
       verticals: true,
-      diagonals: "both",
+      diagonals: o.diagonals || "both",
     });
     sol.push(...t.solution);
     anchors.push(...t.anchors);
@@ -414,10 +464,11 @@ function pillarLevel(o) {
   const rightX = o.rightX;
   const deckMat = o.deckMat || "road";
   const trussMat = o.trussMat || "wood";
-  const h = o.height == null ? 2.2 : o.height;
+  const h = o.height == null ? 2.2 : o.grid ? gridH(o.height) : o.height;
   const maxDeck = materials[deckMat].max * 0.99;
   const maxTruss = materials[trussMat].max * 0.99;
   const pathTo = (xa, ya, xb, yb) => {
+    if (o.grid) return gridPath(linePath(xa, ya, xb, yb), deckMat, trussMat, h);
     let n = 2;
     for (; n < 30; n++) {
       const dx = (xb - xa) / n, dy = (yb - ya) / n;
@@ -429,8 +480,8 @@ function pillarLevel(o) {
   };
   const lp = pathTo(o.x0, y0, mid, y0);
   const rp = pathTo(mid, y0, rightX, y1);
-  const left = trussOver(lp, { deckMat, trussMat, height: h });
-  const right = trussOver(rp, { deckMat, trussMat, height: h });
+  const left = trussOver(lp, { deckMat, trussMat, height: h, diagonals: o.diagonals });
+  const right = trussOver(rp, { deckMat, trussMat, height: h, diagonals: o.diagonals });
   const sol = left.solution.concat(right.solution);
   const anchors = dedupeAnchors(left.anchors.concat(right.anchors, [[mid, y0]]));
   const blocks = [[mid - half, base, mid + half, y0], ...(o.blocks || [])];
@@ -579,6 +630,11 @@ function flatTruss(x0, x1, y, opts) {
   opts = opts || {};
   const deckMat = opts.deckMat || "road";
   const trussMat = opts.trussMat || "wood";
+  if (opts.grid) {
+    const gh = gridH(opts.height == null ? 2 : opts.height);
+    const pts = gridPath(linePath(x0, y, x1, y), deckMat, trussMat, gh);
+    return trussOver(pts, { deckMat, trussMat, height: gh, mode: "above", diagonals: opts.diagonals });
+  }
   const h = opts.height == null ? 2.4 : opts.height;
   const maxDeck = materials[deckMat].max * 0.99;
   const maxTruss = materials[trussMat].max * 0.99;
@@ -607,6 +663,7 @@ function portalVaultLevel(o) {
     name: o.name,
     tip: o.tip || "tip_portal",
     x0, x1, y0: 0, y1, height: h,
+    grid: o.grid, diagonals: o.diagonals,
     deckMat,
     trussMat: o.trussMat || "steel",
     materials: o.materials || ["road", "wood", "steel", "cable", "steel_road", "boost"],
@@ -644,6 +701,7 @@ function portalLaunchLevel(o) {
     name: o.name,
     tip: o.tip || "tip_portal",
     x0: 0, x1, y0: 0, y1: 0,
+    grid: o.grid, diagonals: o.diagonals,
     height: o.height == null ? 2.4 : o.height,
     deckMat: o.deckMat || "road",
     trussMat: o.trussMat || "wood",
@@ -683,6 +741,7 @@ function portalCatchLevel(o) {
     name: o.name,
     tip: o.tip || "tip_portal",
     x0: bridgeX0, x1: bridgeX1, y0: startY, y1: startY,
+    grid: o.grid, diagonals: o.diagonals,
     height: o.height == null ? 2.4 : o.height,
     deckMat: o.deckMat || "road",
     trussMat: o.trussMat || "wood",
@@ -714,8 +773,9 @@ function portalChain2Level(o) {
   const b2x0 = o.b2x0 == null ? 22 : o.b2x0;
   const b2x1 = o.b2x1 == null ? 30 : o.b2x1;
   const deckMat = o.deckMat || "road";
-  const b1 = flatTruss(0, b1x1, 0, { deckMat, trussMat: o.b1mat || "wood" });
-  const b2 = flatTruss(b2x0, b2x1, highY, { deckMat, trussMat: o.b2mat || "steel" });
+  const tg = { grid: o.grid, height: o.height, diagonals: o.diagonals };
+  const b1 = flatTruss(0, b1x1, 0, { ...tg, deckMat, trussMat: o.b1mat || "wood" });
+  const b2 = flatTruss(b2x0, b2x1, highY, { ...tg, deckMat, trussMat: o.b2mat || "steel" });
   return assemble({
     id: o.id,
     name: o.name,
@@ -757,8 +817,9 @@ function portalChain3Level(o) {
   const plateauX = entry3 + 6;
   const exit3 = plateauX + 2;
   const deckMat = o.deckMat || "road";
-  const b1 = flatTruss(0, b1x1, 0, { deckMat, trussMat: o.b1mat || "wood" });
-  const b2 = flatTruss(b2x0, b2x1, highY, { deckMat, trussMat: o.b2mat || "steel" });
+  const tg = { grid: o.grid, height: o.height, diagonals: o.diagonals };
+  const b1 = flatTruss(0, b1x1, 0, { ...tg, deckMat, trussMat: o.b1mat || "wood" });
+  const b2 = flatTruss(b2x0, b2x1, highY, { ...tg, deckMat, trussMat: o.b2mat || "steel" });
   return assemble({
     id: o.id,
     name: o.name,
@@ -858,10 +919,14 @@ function suspensionLevel(o) {
   const segments = o.segments || Math.max(2, Math.ceil((x1 - x0) / 2.7));
   const solu = [];
   let path = [];
-  for (let k = 0; k <= segments; k++) {
-    path.push([R(x0 + ((x1 - x0) * k) / segments), R(y0 + ((y1 - y0) * k) / segments)]);
+  if (o.grid) {
+    path = gridPath(linePath(x0, y0, x1, y1), deckMat, null, 0);
+  } else {
+    for (let k = 0; k <= segments; k++) {
+      path.push([R(x0 + ((x1 - x0) * k) / segments), R(y0 + ((y1 - y0) * k) / segments)]);
+    }
+    if (o.snapToGrid) path = snapPoints(path);
   }
-  if (o.snapToGrid) path = snapPoints(path);
   for (let k = 0; k < path.length - 1; k++) {
     solu.push([deckMat, path[k][0], path[k][1], path[k + 1][0], path[k + 1][1]]);
   }

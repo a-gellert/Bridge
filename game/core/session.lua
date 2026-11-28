@@ -399,7 +399,7 @@ make_result = function()
 		level_id = M.level.id,
 		level_number = M.level.number,
 		chapter_index = M.level.chapter_index,
-		is_biome_milestone = won and (M.level.number == 8),
+		is_biome_milestone = won and levels.is_block_end(M.level),
 		time = run.end_time or run.time,
 		broken = run.broken,
 		beams = M.blueprint:beam_count(),
@@ -437,6 +437,12 @@ make_result = function()
 	if run.stunts and run.stunts.score > 0 then progress.bump("stunt_score", run.stunts.score) end
 	res.has_next = levels.get(M.index + 1) ~= nil
 	res.next_unlocked = res.has_next and progress.level_unlocked(M.index + 1)
+	-- Block end: the biome card needs a target. Computed after record_win, so this level no
+	-- longer counts as unsolved. No target (every other chapter is done) = normal win card.
+	if res.is_biome_milestone then
+		res.biome_target = progress.next_biome_level(M.index)
+		if not res.biome_target then res.is_biome_milestone = false end
+	end
 	res.wallet = progress.wallet()
 	check_achievements({ run = run, result = res })
 	return res
